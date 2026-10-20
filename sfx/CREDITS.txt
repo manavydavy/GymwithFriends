@@ -1,0 +1,8 @@
+Sounds in this folder
+
+Made from scratch for Gym with Friends by tools/make_sounds.py (no samples): every clank, ding,
+whoosh, whistle, buzzer, bell, horn, splash, towel, power-up, coin, chimes, fanfare, crowd cheer,
+claps, sad trombone and the music loop. Re-run the script to remake or tweak them.
+
+From Kenney's "Interface Sounds" pack (CC0, public domain, credit appreciated): ui_click.mp3,
+ui_select.mp3, ask.mp3, join.mp3, error.mp3. https://kenney.nl

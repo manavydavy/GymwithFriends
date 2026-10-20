@@ -26,13 +26,14 @@ const FILES = {
   '/gym3d.js': ['gym3d.js', 'application/javascript; charset=utf-8'],
   '/view3d.js': ['view3d.js', 'application/javascript; charset=utf-8'],
   '/GLTFLoader.js': ['GLTFLoader.js', 'application/javascript; charset=utf-8'],
-  '/DRACOLoader.js': ['DRACOLoader.js', 'application/javascript; charset=utf-8']
+  '/DRACOLoader.js': ['DRACOLoader.js', 'application/javascript; charset=utf-8'],
+  '/audio.js': ['audio.js', 'application/javascript; charset=utf-8']
 };
-// 3D model files and the Draco decoder (simple names only, no sub-folders)
-const TYPES = { jpg: 'image/jpeg', glb: 'model/gltf-binary', json: 'application/json', js: 'application/javascript; charset=utf-8', wasm: 'application/wasm' };
+// 3D model files, the Draco decoder and the sounds (simple names only, no sub-folders)
+const TYPES = { mp3: 'audio/mpeg', jpg: 'image/jpeg', glb: 'model/gltf-binary', json: 'application/json', js: 'application/javascript; charset=utf-8', wasm: 'application/wasm' };
 function lookup(u) {
   if (FILES[u]) return FILES[u];
-  const m = u.match(/^\/(models|draco)\/([\w-]+)\.(glb|json|js|wasm|jpg)$/);
+  const m = u.match(/^\/(models|draco|sfx)\/([\w-]+)\.(glb|json|js|wasm|jpg|mp3)$/);
   return m ? [m[1] + '/' + m[2] + '.' + m[3], TYPES[m[3]]] : null;
 }
 const server = http.createServer((req, res) => {
@@ -137,7 +138,7 @@ function strike(r, p, why) {
   p.lock = C.lockoutTime; p.heat = 35;
   ev(r, { k: 'ban', to: p.id, s: 'Strike: ' + why + ' (−' + C.strikePenalty + ')', c: '#ff8a80' });
   ev(r, { k: 'buzz', to: p.id, v: [60, 60, 60] });
-  ev(r, { k: 'pop', x: Math.round(p.x), y: Math.round(p.y - 34), s: p.n + ' is getting a staff lecture', c: '#ff8a80' });
+  ev(r, { k: 'pop', x: Math.round(p.x), y: Math.round(p.y - 34), sf: 'whistle', s: p.n + ' is getting a staff lecture', c: '#ff8a80' });
 }
 function programDone(r, p) { return r.prog.every(k => p.grp[k].p >= 100); }
 // The golden machine: once someone finishes the program, one machine glows gold. Finished players bank
@@ -176,7 +177,7 @@ function act(r, p, a) {
     const ask = r.asks.find(q => q.owner === p.id);
     if (!ask) return;
     r.asks = r.asks.filter(q => q !== ask);
-    ev(r, { k: 'pop', x: Math.round(p.x), y: Math.round(p.y - 32), s: '"Yep, using it"', c: '#8FB6FF' });
+    ev(r, { k: 'pop', x: Math.round(p.x), y: Math.round(p.y - 32), sf: 'ui_select', s: '"Yep, using it"', c: '#8FB6FF' });
     const by = r.players.get(ask.by);
     if (by) { by.askCd = C.askCooldown; ev(r, { k: 'ban', to: by.id, s: p.n + ' says they\'re using it', c: '#ffb070' }); }
     return;
@@ -193,7 +194,7 @@ function act(r, p, a) {
       if (r.asks.some(q => q.m === i)) return;
       if (p.askCd > 0) { say(r, p, 'They said they\'re using it', '#ffb070'); return; }
       r.asks.push({ by: p.id, owner: mm.claim.owner, m: i, t: C.askTime });
-      ev(r, { k: 'pop', x: Math.round(p.x), y: Math.round(p.y - 32), s: '"Anyone using this?"', c: '#FFE29A' });
+      ev(r, { k: 'pop', x: Math.round(p.x), y: Math.round(p.y - 32), sf: 'ask', s: '"Anyone using this?"', c: '#FFE29A' });
       ev(r, { k: 'buzz', to: mm.claim.owner, v: [40, 40, 40] });
       return;
     }
@@ -209,7 +210,7 @@ function act(r, p, a) {
     p.fat = Math.max(0, p.fat - C.wipeAmount);
     p.towelCd = C.wipeCooldown; p.stats.wipes++;
     ev(r, { k: 'steam', x: Math.round(p.x), y: Math.round(p.y) });
-    ev(r, { k: 'pop', x: Math.round(p.x), y: Math.round(p.y - 34), s: 'Wiped down', c: '#BFE8FF' });
+    ev(r, { k: 'pop', x: Math.round(p.x), y: Math.round(p.y - 34), sf: 'wipe', s: 'Wiped down', c: '#BFE8FF' });
     return;
   }
 
@@ -224,7 +225,7 @@ function act(r, p, a) {
     r.m[i].claim = { owner: p.id, t: C.claimDuration };
     p.claim = i;
     const m = S.MACH[i];
-    ev(r, { k: 'pop', x: m.x + m.w / 2, y: m.y - 12, s: p.n + ' claimed it', c: p.c });
+    ev(r, { k: 'pop', x: m.x + m.w / 2, y: m.y - 12, sf: 'towel', s: p.n + ' claimed it', c: p.c });
     return;
   }
 
@@ -250,7 +251,7 @@ function act(r, p, a) {
     tgt.kvx = Math.cos(ang) * 340; tgt.kvy = Math.sin(ang) * 340;
     tgt.stun = C.shoveStun; tgt.combo = 0; tgt.tp++;
     r.asks = r.asks.filter(q => q.by !== tgt.id);
-    ev(r, { k: 'pop', x: Math.round(tgt.x), y: Math.round(tgt.y - 30), s: 'SHOVED', c: '#fff' });
+    ev(r, { k: 'pop', x: Math.round(tgt.x), y: Math.round(tgt.y - 30), sf: 'shove', s: 'SHOVED', c: '#fff' });
     ev(r, { k: 'ban', to: tgt.id, s: 'Shoved by ' + p.n + '!', c: '#ff8a80' });
     ev(r, { k: 'buzz', to: tgt.id, v: 80 });
     if (S.staffSees(r.staff, p.x, p.y)) strike(r, p, 'staff saw that shove');
@@ -275,10 +276,10 @@ function rep(r, p, q) {
     // golden machine: full gains, no muscle progress (so no pulled muscles), counts toward the bonus
     const gain = Math.round(10 * (1 + Math.min(p.combo, 10) * 0.1) * (perfect ? 1.5 : 1) + (perfect ? C.perfectBonus : 0));
     p.gains += gain; p.goldN++;
-    ev(r, { k: 'pop', to: p.id, x: Math.round(p.x), y: Math.round(p.y - 46), s: 'Gold ' + p.goldN + '/' + C.goldReps + '  +' + gain, c: '#FFC93C' });
+    ev(r, { k: 'pop', to: p.id, x: Math.round(p.x), y: Math.round(p.y - 46), sf: 'coin', s: 'Gold ' + p.goldN + '/' + C.goldReps + '  +' + gain, c: '#FFC93C' });
     if (p.goldN >= C.goldReps) {
       p.gains += C.goldBonus; p.stats.golds++;
-      ev(r, { k: 'ban', s: p.n + ' banked the golden machine! +' + C.goldBonus, c: '#FFC93C' });
+      ev(r, { k: 'ban', sf: 'jingle', s: p.n + ' banked the golden machine! +' + C.goldBonus, c: '#FFC93C' });
       moveGold(r);
     }
   } else {
@@ -289,13 +290,13 @@ function rep(r, p, q) {
   ev(r, { k: 'pop', to: p.id, x: Math.round(p.x), y: Math.round(p.y - 46), s: (perfect ? 'Perfect +' : '+') + gain, c: perfect ? '#FFC93C' : '#9BE89F' });
   }
   if (before < 100 && g.p >= 100) {
-    ev(r, { k: 'ban', to: p.id, s: S.GROUPS[m.g].n + ' done!', c: '#9BE89F' });
+    ev(r, { k: 'ban', to: p.id, sf: 'jingle', s: S.GROUPS[m.g].n + ' done!', c: '#9BE89F' });
     if (!p.done && programDone(r, p)) {
       p.done = true;
       const bonus = C.programBonus + (r.firstDone ? 0 : C.firstBonus);
       p.gains += bonus;
-      if (!r.firstDone) { r.firstDone = true; ev(r, { k: 'ban', s: p.n + ' finished the program first! +' + bonus, c: '#FFC93C' }); }
-      else ev(r, { k: 'ban', to: p.id, s: 'Program done! +' + bonus, c: '#9BE89F' });
+      if (!r.firstDone) { r.firstDone = true; ev(r, { k: 'ban', sf: 'jingle', s: p.n + ' finished the program first! +' + bonus, c: '#FFC93C' }); }
+      else ev(r, { k: 'ban', to: p.id, sf: 'jingle', s: 'Program done! +' + bonus, c: '#9BE89F' });
       if (r.gold < 0) moveGold(r);
     }
   }
@@ -305,7 +306,7 @@ function rep(r, p, q) {
     g.pulled = true; p.limp = C.limpTime; p.stats.pulls++;
     p.gains = Math.max(0, p.gains - C.pullPenalty); p.combo = 0;
     ev(r, { k: 'ban', to: p.id, s: 'Pulled your ' + S.GROUPS[m.g].n.toLowerCase() + '! −' + C.pullPenalty, c: '#ff8a80' });
-    ev(r, { k: 'pop', x: Math.round(p.x), y: Math.round(p.y - 34), s: p.n + ' pulled something', c: '#ff8a80' });
+    ev(r, { k: 'pop', x: Math.round(p.x), y: Math.round(p.y - 34), sf: 'ouch', s: p.n + ' pulled something', c: '#ff8a80' });
     stepOff(r, p);
     return;
   }
@@ -508,7 +509,7 @@ function tick(r, dt) {
   if (r.st !== 'playing') return;
   r.t -= dt;
   if (r.t <= 0) { endRound(r); return; }
-  if (!r.warned && r.t <= 30) { r.warned = true; ev(r, { k: 'ban', s: 'Gym closing in 30 seconds', c: '#FFC93C' }); }
+  if (!r.warned && r.t <= 30) { r.warned = true; ev(r, { k: 'ban', sf: 'bell', s: 'Gym closing in 30 seconds', c: '#FFC93C' }); }
 
   for (const p of r.players.values()) {
     p.stun = Math.max(0, p.stun - dt); p.lock = Math.max(0, p.lock - dt);
@@ -567,7 +568,7 @@ function tick(r, dt) {
       clearClaim(r, owner);
       by.stats.steals++;
       ev(r, { k: 'ban', to: owner.id, s: by.n + ' nicked your ' + S.MACH[q.m].name + '!', c: '#ff8a80' });
-      ev(r, { k: 'pop', x: u.x, y: u.y - 40, s: 'Nicked!', c: '#FFC93C' });
+      ev(r, { k: 'pop', x: u.x, y: u.y - 40, sf: 'nick', s: 'Nicked!', c: '#FFC93C' });
       if (mm.user === null && by.lock <= 0 && by.stun <= 0) hopOn(r, by, q.m);
     }
   }
@@ -643,7 +644,7 @@ wss.on('connection', ws => {
       r = room;
       p = addPlayer(r, String(d.name || '').replace(/[<>]/g, '').trim().slice(0, 14) || 'Gym rat', ws, false);
       ws.send(JSON.stringify({ t: 'welcome', id: p.id, code }));
-      ev(r, { k: 'ban', s: p.n + ' walked in', c: '#8FB6FF' });
+      ev(r, { k: 'ban', sf: 'join', s: p.n + ' walked in', c: '#8FB6FF' });
       return;
     }
     if (d.t === 'tp' && process.env.GC_DEBUG && typeof d.x === 'number' && typeof d.y === 'number') { p.x = d.x; p.y = d.y; p.lastPos = Date.now(); if (typeof d.ft === 'number') p.fat = d.ft; }   // screenshots only
