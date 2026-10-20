@@ -131,7 +131,7 @@ html.touch .stage{border-radius:0;border:0}
 </div>
 <div class="overlay" id="ov"><div class="card" id="ovCard"></div></div>
 </div>
-<p class="keys">Keyboard: <kbd>WASD</kbd> or arrows move, <kbd>Space</kbd> rep, <kbd>E</kbd> use or step off, <kbd>Q</kbd> throw towel, <kbd>C</kbd> wipe down, <kbd>F</kbd> shove, hold <kbd>Shift</kbd> to sprint (burns fatigue fast), <kbd>R</kbd> "Yep, using it", <kbd>1</kbd>–<kbd>4</kbd> quick chat.</p>
+<p class="keys">Keyboard: <kbd>WASD</kbd> move, <kbd>arrows</kbd> turn the camera (behind-you view), <kbd>Space</kbd> rep, <kbd>E</kbd> use or step off, <kbd>Q</kbd> throw towel, <kbd>C</kbd> wipe down, <kbd>F</kbd> shove, hold <kbd>Shift</kbd> to sprint (burns fatigue fast), <kbd>R</kbd> "Yep, using it", <kbd>1</kbd>–<kbd>4</kbd> quick chat.</p>
 </main>
 
 <script src="shared.js"></script>
@@ -172,12 +172,17 @@ let CAMP=CAMWANT;   // start already settled on the chosen view (behind you is t
 const camWant=()=>TOUCH?1:CAMWANT;
 const camEase=t=>t*t*t*(t*(t*6-15)+10);   // smootherstep: no jolt at either end
 const CAMW=()=>IN3D()?camEase(CAMP):0;
+// On PC in the behind-you view the arrow keys swing the camera around (WASD still walks); anywhere else they walk.
+const arrowsCam=()=>!TOUCH&&IN3D()&&CAMWANT===1;
+const keyDir=(d)=>K.has(d)||(!arrowsCam()&&K.has('a'+d));
+function camKeys(dt){if(!arrowsCam())return;const t=(K.has('aright')?1:0)-(K.has('aleft')?1:0),p=(K.has('aup')?1:0)-(K.has('adown')?1:0);
+if(t||p)ME.manCam=true;if(t)ME.camYaw+=t*dt*2.4;if(p)ME.camP=Math.max(-0.6,Math.min(1,(ME.camP||0)+p*dt*1.4))}
 const camYawNow=()=>{const w=CAMW();return -Math.PI/2+SH.angDiff(ME.camYaw,-Math.PI/2)*w};
-function toggleCam(){if(TOUCH||!IN3D())return;CAMWANT=CAMWANT?0:1;try{localStorage.setItem('gc_cam',CAMWANT?'behind':'overhead')}catch(e){}
+function toggleCam(){if(TOUCH||!IN3D())return;CAMWANT=CAMWANT?0:1;ME.manCam=false;ME.camP=0;try{localStorage.setItem('gc_cam',CAMWANT?'behind':'overhead')}catch(e){}
 if(CAMWANT&&CAMP<.05)ME.camYaw=ME.faceA!==undefined?ME.faceA:-Math.PI/2;syncCamBtn()}
 function syncCamBtn(){const b=$('camBtn');if(!b)return;const show=IN3D()&&!TOUCH&&!!S&&(S.st==='playing'||S.st==='countdown');if(b.hidden===show)b.hidden=!show;
 const t=camWant()?'Behind you':'Overhead';if(b.dataset.t!==t){b.dataset.t=t;b.title='Switch camera (V)';b.setAttribute('aria-label','Camera: '+t+'. Press V to switch');b.innerHTML='<span class="ci" aria-hidden="true"></span><span class="ct">'+t+' <kbd>V</kbd></span>'}}
-let pops=[],parts=[],steam=[],dust=[],banner=null,hintMsg=null,seen={},cardKey='';
+let pops=[],parts=[],steam=[],dust=[],water=[],rip=[],banner=null,hintMsg=null,seen={},cardKey='';
 const K=new Set(),JV={x:0,y:0},SPR={key:false,touch:false};
 const me=()=>S&&S.p.find(p=>p.id===myId);
 const byId=id=>S&&S.p.find(p=>p.id===id);
@@ -284,7 +289,7 @@ function inviteBox(){return '<div class="invite"><code>'+esc(inviteUrl())+'</cod
 function wireInvite(){const b=$('copyBtn');if(!b)return;b.onclick=()=>{const url=inviteUrl();
 if(navigator.share&&TOUCH){navigator.share({title:'Gym with Friends',text:'Get in the gym. Room '+S.code,url}).catch(()=>{});return}
 (navigator.clipboard?navigator.clipboard.writeText(url):Promise.reject()).then(()=>{b.textContent='Copied'}).catch(()=>{b.textContent='Copy failed';prompt('Copy this link',url)})}}
-function plist(list,withScore){return '<ul class="plist">'+list.map((p,i)=>'<li>'+(withScore?'<span class="place">'+(i+1)+'</span>':'')+'<span class="dot" style="background:'+p.c+'"></span><span>'+esc(p.n)+'</span>'+(p.id===myId?'<span class="tag">You</span>':'')+(p.id===S.host?'<span class="tag">Host</span>':'')+(p.b?'<span class="tag">Dummy</span>':'')+(withScore?'<span class="score">'+p.g+(p.dn?' ✓':'')+'</span>':'')+'</li>').join('')+'</ul>'}
+function plist(list,withScore){return '<ul class="plist">'+list.map((p,i)=>'<li>'+(withScore?'<span class="place">'+(i+1)+'</span>':'')+'<span class="dot" style="background:'+p.c+'"></span><span>'+esc(p.n)+'</span>'+(p.id===myId?'<span class="tag">You</span>':'')+(p.id===S.host?'<span class="tag">Host</span>':'')+(p.b?'<span class="tag">Bot</span>':'')+(withScore?'<span class="score">'+p.g+(p.dn?' ✓':'')+'</span>':'')+'</li>').join('')+'</ul>'}
 
 // The one card that explains the game: today's muscles, fatigue, rest areas, and the dirty tricks
 function howTo(){const k=(key,btn)=>TOUCH?'<b>'+btn+'</b>':'<kbd>'+key+'</kbd>';
@@ -301,7 +306,7 @@ if(S.st==='playing'||S.st==='countdown'){hideCard();return}
 if(S.st==='lobby'){const key='lobby|'+host+'|'+S.p.map(p=>p.id+p.n).join(',');if(cardKey===key)return;
 const hostName=(byId(S.host)||{}).n||'the host';const bots=S.p.filter(p=>p.b).length;
 setCard('<div class="lobby"><div><h2>Room '+esc(S.code)+'</h2><p>Send your mates this link:</p>'+inviteBox()+plist(S.p,false)+
-(host?'<div class="row"><button class="primary" type="button" id="startBtn">Start round</button><button class="ghost" type="button" id="botAdd"'+(bots>=3||S.p.length>=C.maxPlayers?' disabled':'')+'>Add a practice dummy</button>'+(bots?'<button class="ghost" type="button" id="botRm">Remove dummies</button>':'')+'</div>':'<p><b>Waiting for '+esc(hostName)+' to start the round.</b></p>')+
+(host?'<div class="row"><button class="primary" type="button" id="startBtn">Start round</button><button class="ghost" type="button" id="botAdd"'+(bots>=3||S.p.length>=C.maxPlayers?' disabled':'')+'>Add a bot</button>'+(bots?'<button class="ghost" type="button" id="botRm">Remove bots</button>':'')+'</div>':'<p><b>Waiting for '+esc(hostName)+' to start the round.</b></p>')+
 '</div>'+howTo()+'</div>',key);
 wireInvite();if(host){$('startBtn').onclick=()=>send({t:'act',a:'start'});$('botAdd').onclick=()=>send({t:'act',a:'bot+'});if($('botRm'))$('botRm').onclick=()=>send({t:'act',a:'bot-'})}return}
 if(S.st==='results'&&S.res){const key='res|'+host+'|'+S.res.rank.map(p=>p.id+':'+p.g).join(',')+'|'+S.p.length;if(cardKey===key)return;
@@ -334,6 +339,7 @@ $('emotes').querySelectorAll('button').forEach(b=>b.addEventListener('pointerdow
 // ---------- local simulation ----------
 function update(dt){TT+=dt;
 parts.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.a-=dt*1.2});parts=parts.filter(p=>p.a>0);
+water.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=260*dt;if(p.y>=p.g&&p.vy>0)p.a=0;p.a-=dt*.8});water=water.filter(p=>p.a>0);rip.forEach(r=>r.t+=dt);rip=rip.filter(r=>r.t<.7);
 steam.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.15,dt);p.vy-=20*dt;p.a-=dt*1.1;p.r+=dt*16});steam=steam.filter(p=>p.a>0);
 dust.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.a-=dt*2.2});dust=dust.filter(p=>p.a>0);
 pops.forEach(p=>{p.y-=24*dt;p.a-=dt});pops=pops.filter(p=>p.a>0);
@@ -350,6 +356,7 @@ if(Math.random()<dt*(p.ft-55)/45*9)parts.push({x:pos.x+rnd(-9,9),y:pos.y-12,vx:r
 // steam out of the ears when fatigue is maxed, dust kicked up when sprinting
 for(const p of S.p){const pos=p.on!==null?{x:MACH[p.on].x+MACH[p.on].w/2,y:MACH[p.on].y+MACH[p.on].h/2}:(p.id===myId?ME:disp[p.id]);if(!pos)continue;
 if(p.ft>=95)for(let n=Math.floor(dt*40+Math.random());n>0;n--){const k=Math.random()<.5?-1:1;steam.push({x:pos.x+k*12,y:pos.y-6,vx:k*rnd(45,75),vy:rnd(-35,-15),a:1,r:rnd(4,6)})}
+if(p.rs&&p.on===null){for(let n=Math.floor(dt*30+Math.random());n>0;n--){const a=rnd(-2.6,-.5);const sp=rnd(40,95);water.push({x:pos.x+rnd(-5,5),y:pos.y-20,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-30,a:1,g:pos.y+rnd(2,12)})}if(Math.random()<dt*5)rip.push({x:pos.x+rnd(-18,18),y:pos.y+rnd(2,14),t:0})}
 const spr=p.id===myId?ME.spr:p.sp;if(spr&&p.on===null&&Math.random()<dt*26)dust.push({x:pos.x+rnd(-6,6),y:pos.y+8,vx:rnd(-15,15),vy:rnd(-8,4),a:.9})}
 CAMP=Math.max(0,Math.min(1,CAMP+(camWant()?1:-1)*dt/0.85));syncCamBtn();
 const m=me();if(!m)return;
@@ -357,10 +364,10 @@ if(ME.vo)ME.vo.t-=dt;FADE=Math.max(0,FADE-dt);
 ME.cd=Math.max(0,ME.cd-dt);
 ME.spr=false;
 if(m.lk){const k=Math.min(1,dt*15);ME.x+=(m.x-ME.x)*k;ME.y+=(m.y-ME.y)*k}
-else if(S.st==='playing'){let vx=(K.has('right')?1:0)-(K.has('left')?1:0)+JV.x,vy=(K.has('down')?1:0)-(K.has('up')?1:0)+JV.y;const l=Math.hypot(vx,vy);
+else if(S.st==='playing'){camKeys(dt);let vx=(keyDir('right')?1:0)-(keyDir('left')?1:0)+JV.x,vy=(keyDir('down')?1:0)-(keyDir('up')?1:0)+JV.y;const l=Math.hypot(vx,vy);
 if(l>1){vx/=l;vy/=l}
 if(CAMW()>0&&l>0){const f=camYawNow(),fx=Math.cos(f),fy=Math.sin(f),nx=fx*(-vy)-fy*vx,ny=fy*(-vy)+fx*vx;vx=nx;vy=ny;
-const hd=Math.atan2(vy,vx),dd=SH.angDiff(hd,ME.camYaw);if(CAMW()>.85&&l>.3&&Math.abs(dd)<1.75)ME.camYaw+=dd*Math.min(1,dt*1.5*Math.min(1,l))}
+const hd=Math.atan2(vy,vx),dd=SH.angDiff(hd,ME.camYaw);if(!ME.manCam&&CAMW()>.85&&l>.3&&Math.abs(dd)<1.75)ME.camYaw+=dd*Math.min(1,dt*1.5*Math.min(1,l))}
 if(l>.2)ME.faceA=Math.atan2(vy,vx);
 ME.spr=(SPR.key||SPR.touch)&&l>.2&&!m.lm&&m.ft<100;const sp=C.playerSpeed*(m.lm?.55:1)*(ME.spr?C.sprintMult:1);if(l){ME.x+=vx*sp*dt;ME.y+=vy*sp*dt}SH.collide(ME);
 ME.stairT=Math.max(0,(ME.stairT||0)-dt);{const st=ME.stairT<=0&&SH.stairAt(ME.x,ME.y);if(st){const o=SH.stairDest(st,ME.x);floorJump(ME,o[0],o[1]);ME.stairT=.8}}
@@ -500,6 +507,9 @@ if(guide){const g=guide,s=1/Z,tip=g.y-(g.rest?g.rest.r*.2:34)+Math.sin(TT*6)*6*s
 if(g.rest){const ph=(TT*1.1)%1;cx.strokeStyle='rgba(143,211,255,'+(1-ph)+')';cx.lineWidth=4*s;cx.beginPath();cx.arc(g.x,g.y,g.rest.r+ph*34,0,7);cx.stroke()}
 if(!g.gold){gArrow(g.x,tip,g.c,s*1.2);wl(g.t,g.x,tip-46*s,g.c,13,true)}
 if(dist(ME.x,ME.y,g.x,g.y)>150){const a=Math.atan2(g.y-ME.y,g.x-ME.x);gPtr(ME.x+Math.cos(a)*40,ME.y+Math.sin(a)*40,a,g.c,s*1.3);wl(g.sh,ME.x+Math.cos(a)*78,ME.y+Math.sin(a)*66,g.c,11,true)}}
+// water splashes in rest areas
+rip.forEach(r=>{const k=r.t/.7;cx.strokeStyle='rgba(191,233,255,'+(.8*(1-k))+')';cx.lineWidth=2;cx.beginPath();cx.ellipse(r.x,r.y,4+k*18,2+k*8,0,0,7);cx.stroke()});
+water.forEach(p=>{cx.fillStyle='rgba(127,212,255,'+Math.max(0,p.a)+')';cx.beginPath();cx.arc(p.x,p.y,2.4,0,7);cx.fill()});
 // steam from the ears, drawn over the players
 steam.forEach(p=>{const a=Math.max(0,p.a);cx.fillStyle=p.pink?'rgba(255,95,200,'+a+')':'rgba(255,255,255,'+a*.95+')';cx.strokeStyle='rgba(120,135,150,'+a*.6+')';cx.lineWidth=1.2;cx.beginPath();cx.arc(p.x,p.y,p.r,0,7);cx.fill();cx.stroke()});
 // asks in progress
@@ -619,7 +629,7 @@ pops.forEach(p=>{cx.globalAlpha=Math.max(0,Math.min(1,p.a));const s=P(p.x,p.y,1.
 if(S.st==='playing'&&S.tm<20){cx.fillStyle='rgba(5,6,10,'+((20-S.tm)/20*.3)+')';cx.fillRect(0,0,VW,VH)}}
 function draw(){const m=me();
 if(VIEW3D&&window.V3D&&V3D.ready){cx.setTransform(DPR,0,0,DPR,0,0);cx.clearRect(0,0,VW,VH);if(!S)return;
-V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT,dt:DT,GA,vo:voNow,cam:{yaw:camYawNow(),w:CAMW()}});drawLabels3D(m);}else{
+V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT,dt:DT,GA,vo:voNow,cam:{yaw:camYawNow(),w:CAMW(),p:ME.camP||0}});drawLabels3D(m);}else{
 const vw=VW/Z,vh=VH/Z,fl=SH.FLOORS[SH.floorOf(ME.x)];cam.x=fl.w<=vw?fl.x+(fl.w-vw)/2:Math.max(fl.x,Math.min(fl.x+fl.w-vw,ME.x-vw/2));const padB=TOUCH?vh*0.32:40;cam.y=fl.h+padB<=vh?fl.y+(fl.h-vh)/2:Math.max(-40,Math.min(fl.y+fl.h-vh+padB,ME.y-vh/2));
 cx.setTransform(DPR,0,0,DPR,0,0);cx.fillStyle='#2B303A';cx.fillRect(0,0,VW,VH);
 if(!S)return;
@@ -654,7 +664,7 @@ requestAnimationFrame(frame);
 showJoin();
 
 // ---------- keyboard ----------
-const KEYMAP={ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right'};
+const KEYMAP={ArrowUp:'aup',KeyW:'up',ArrowDown:'adown',KeyS:'down',ArrowLeft:'aleft',KeyA:'left',ArrowRight:'aright',KeyD:'right'};
 const ACTMAP={Space:'rep',KeyE:'use',KeyQ:'towel',KeyC:'wipe',KeyF:'shove',KeyR:'answer'};
 addEventListener('keydown',e=>{const tag=e.target&&e.target.tagName;if(tag==='INPUT')return;
 if(TOUCH&&(KEYMAP[e.code]||ACTMAP[e.code]))setTouch(false);

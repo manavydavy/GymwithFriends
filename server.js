@@ -53,7 +53,7 @@ const rooms = new Map();
 let nextId = 1;
 const rnd = (a, b) => a + Math.random() * (b - a);
 const dist = S.dist, useSpot = S.useSpot;
-const BOT_NAMES = ['Dummy Dave', 'Dummy Shaz', 'Dummy Bazza'];
+const BOT_NAMES = ['Bot 1', 'Bot 2', 'Bot 3'];
 
 function makeRoom(code) {
   const r = {
@@ -340,7 +340,7 @@ function emote(r, p, e) {
   p.em = s; p.emT = 2.5; p.emCd = 1;
 }
 
-// ---------- practice dummies (server-controlled players) ----------
+// ---------- bots (server-controlled players) ----------
 const route = S.route;
 // After going up or down stairs, skip waypoints that were on the old floor
 function trimPath(p) { const b = p.bt; if (!b.path) return; const f = S.floorOf(p.x); while (b.path.length && S.floorOf(b.path[0][0]) !== f) b.path.shift(); }
@@ -359,7 +359,7 @@ function botThink(r, p, dt) {
     if (b.repT <= 0) { b.repT = rnd(0.45, 0.9); const roll = Math.random(); rep(r, p, roll < 0.2 ? 'perfect' : roll < 0.85 ? 'good' : 'miss'); }
     if (p.on === null) return;
     const g = p.grp[S.MACH[p.on].g];
-    if (b.wiper === undefined) b.wiper = Math.random() < 0.5; // half the dummies prefer wiping down
+    if (b.wiper === undefined) b.wiper = Math.random() < 0.5; // half the bots prefer wiping down
     if (b.wiper && p.fat > 70 && p.towelCd <= 0 && Math.random() < dt * 3) act(r, p, 'wipe');
     if (p.fat > 50 && p.claim === null && p.towelCd <= 0 && !b.wiper && Math.random() < dt * 2) act(r, p, 'towel');
     const onGold = p.done && p.on === r.gold;
@@ -491,7 +491,9 @@ function tick(r, dt) {
       // sprinting burns fatigue instead of recovering it; max it out and you're gassed on the spot
       if (p.preT <= 0) p.fat = Math.min(100, p.fat + C.sprintFatigue * dt);
       if (p.fat >= 100) { p.sprinting = false; p.sprintT = 0; p.stun = 2; p.combo = 0; say(r, p, 'Gassed!', '#ff8a80'); ev(r, { k: 'buzz', to: p.id, v: 120 }); }
-    } else if (p.on === null) p.fat = Math.max(0, p.fat - (resting ? C.recoverRest : C.recoverWalk) * dt);
+    }
+    p.recov = r.st === 'playing' && !p.sprinting && resting && p.fat > 0.5;   // cooling off in a rest area (splash effects)
+    if (!p.sprinting && p.on === null) p.fat = Math.max(0, p.fat - (resting ? C.recoverRest : C.recoverWalk) * dt);
     else p.idle += dt;
     // hog heat: sitting idle on a machine, or leaving your towel while wandering
     let heating = 0;
@@ -569,7 +571,7 @@ function snapshot(r) {
       id: p.id, n: p.n, c: p.c, b: p.bot ? 1 : 0, x: Math.round(p.x), y: Math.round(p.y), on: p.on,
       ft: Math.round(p.fat), lk: p.on !== null || p.stun > 0 || p.lock > 0 ? 1 : 0, st: p.stun > 0 ? 1 : 0, lo: p.lock > 0 ? 1 : 0,
       tp: p.tp, lm: p.limp > 0 ? 1 : 0, sp: p.sprinting ? 1 : 0, g: p.gains, gr: S.GK.map(k => Math.round(p.grp[k].p)), pl: S.GK.map(k => (p.grp[k].pulled ? 1 : 0)),
-      hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd), gn: p.goldN, pw: Math.ceil(p.preT), rc: p.stats.reps, mc: p.stats.misses
+      hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd), gn: p.goldN, pw: Math.ceil(p.preT), rs: p.recov ? 1 : 0, rc: p.stats.reps, mc: p.stats.misses
     });
   }
   const msg = JSON.stringify({
@@ -602,7 +604,7 @@ wss.on('connection', ws => {
       ev(r, { k: 'ban', s: p.n + ' walked in', c: '#8FB6FF' });
       return;
     }
-    if (d.t === 'tp' && process.env.GC_DEBUG && typeof d.x === 'number' && typeof d.y === 'number') { p.x = d.x; p.y = d.y; p.lastPos = Date.now(); }   // screenshots only
+    if (d.t === 'tp' && process.env.GC_DEBUG && typeof d.x === 'number' && typeof d.y === 'number') { p.x = d.x; p.y = d.y; p.lastPos = Date.now(); if (typeof d.ft === 'number') p.fat = d.ft; }   // screenshots only
     if (d.t === 'pos') { p.sprintT = d.s ? 0.3 : 0; movePlayer(r, p, d.x, d.y); }
     else if (d.t === 'act') act(r, p, String(d.a));
     else if (d.t === 'rep') rep(r, p, d.q);

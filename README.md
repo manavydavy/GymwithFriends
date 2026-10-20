@@ -7,7 +7,7 @@ One small Node.js server runs the game and serves the page, so the whole thing i
 
 | File | What it does |
 |---|---|
-| `server.js` | The game server. Runs rooms, the clock, machines, towels, shoves, strikes, scores and practice dummies. |
+| `server.js` | The game server. Runs rooms, the clock, machines, towels, shoves, strikes, scores and bots. |
 | `models.js` | Drawings of the characters and all 15 machines, including how each one animates during a rep. |
 | `shared.js` | The gym layout and every tuning number (`CFG`). Used by both the server and the browser. |
 | `public/index.html` | The game page each player opens. Draws the gym, handles controls, talks to the server. |
@@ -51,7 +51,7 @@ Render redeploys automatically. Anyone mid-game gets disconnected and can hit **
 1. Open the link, type your name and leave the room code blank to create a room.
 2. Tap **Share** or **Copy link** in the lobby and send it to your mates.
 3. The host presses **Start round**. Everyone gets a 5 second countdown, then the round starts. Up to 6 players per room.
-4. Playing alone? The host can **Add a practice dummy** (up to 3) to test against.
+4. Playing alone? The host can **Add a bot** (up to 3) to test against.
 
 The gym has separate areas: the main hall (arms and shoulders), cable alley (back), a long corridor
 past the locker room to the leg room, and stairs up to the chest floor. Each area has its own rest spot.

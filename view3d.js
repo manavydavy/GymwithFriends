@@ -43,6 +43,22 @@
     }
   }
   const V = () => new T.Vector3();
+  // water ripples on the floor (rest areas)
+  const ripples = [], ripplePool = [];
+  let rippleGeo = null;
+  function ripple(x, y, z) {
+    if (!rippleGeo) rippleGeo = new T.RingGeometry(0.75, 1, 28);
+    let m = ripplePool.pop();
+    if (!m) { m = new T.Mesh(rippleGeo, new T.MeshBasicMaterial({ transparent: true, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.renderOrder = 4; setCol(m.material.color, '#BFE9FF'); }
+    m.position.set(x, y, z); scene.add(m); ripples.push({ m, life: 0.75 });
+  }
+  function stepRipples(dt) {
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const r = ripples[i]; r.life -= dt;
+      if (r.life <= 0) { scene.remove(r.m); ripplePool.push(r.m); ripples.splice(i, 1); continue; }
+      const t = 1 - r.life / 0.75; r.m.scale.setScalar(0.1 + t * 0.6); r.m.material.opacity = 0.9 * (1 - t);
+    }
+  }
 
   // Realistic look: proper colour pipeline (sRGB + filmic tone mapping) and reflections from a soft studio-style
   // environment, so chrome, mirrors and plates actually shine. ?look=old turns it off.
@@ -274,12 +290,23 @@
         const ear = head.localToWorld(V().set(k * 0.24, -0.01, 0)), side = head.localToWorld(V().set(k, 0, 0)).sub(head.localToWorld(V())).normalize();
         puff(ear, side.multiplyScalar(0.9 + Math.random() * 0.5).add(V().set(0, 0.45, 0)), { col: '#F2F6FA', life: 1.1, a: 1, r0: 0.12, r1: 0.6, drag: 0.2, rise: 0.8 });
       }
+      // cooling off in a rest area: water splashed over the head, drips and ripples at the feet
+      if (p.rs && p.on === null) {
+        c.group.updateMatrixWorld(true);
+        const head = c.parts.head.localToWorld(V().set(0, 0.22, 0)), g = c.group.position;
+        for (let n = Math.floor(dt * 42 + Math.random()); n > 0; n--) {
+          const a = Math.random() * 6.28, sp = 0.5 + Math.random() * 1.1;
+          puff(head.clone().add(V().set(Math.cos(a) * 0.08, 0, Math.sin(a) * 0.08)), V().set(Math.cos(a) * sp, 1.4 + Math.random() * 1.4, Math.sin(a) * sp), { col: Math.random() < 0.75 ? '#3FB6F5' : '#E8F8FF', life: 0.8, a: 1, r0: 0.13, r1: 0.08, rise: -7.5 });
+        }
+        if (Math.random() < dt * 6) puff(head.clone(), V().set((Math.random() - 0.5) * 0.4, 0.6, (Math.random() - 0.5) * 0.4), { col: '#CFEFFF', life: 0.9, a: 0.55, r0: 0.2, r1: 0.7, drag: 0.3 });
+        if (Math.random() < dt * 7) ripple(g.x + (Math.random() - 0.5) * 0.9, g.y + 0.035, g.z + (Math.random() - 0.5) * 0.9);
+      }
       if (spr && p.on === null && Math.random() < dt * 22) {
         const g = c.group.position;
         puff(V().set(g.x + (Math.random() - 0.5) * 0.3, g.y + 0.08, g.z + (Math.random() - 0.5) * 0.3), V().set((Math.random() - 0.5) * 0.4, 0.35, (Math.random() - 0.5) * 0.4), { col: '#B8AD9C', life: 0.55, a: 0.55, r0: 0.12, r1: 0.4, drag: 0.3 });
       }
     });
-    stepPuffs(dt); adapt(dt);
+    stepPuffs(dt); stepRipples(dt); adapt(dt);
     if (goldArrow) {
       const g = ctx.GA;
       goldArrow.visible = !!g;
@@ -333,8 +360,8 @@
     let pD = pT, tD = tT, fov = 42;
     if (w > 0 && camMap) {
       const yaw = ctx.cam.yaw, fx = Math.cos(yaw), fz = Math.sin(yaw);
-      const maxB = portrait ? 4.2 : 4.0, back = camMap.b, hgt = (portrait ? 3.9 : 3.3) + (maxB - back) * 0.45, ahead = (portrait ? 1.3 : 1.6) * back / maxB;
-      const pS = [tx - fx * back, ty + hgt, tz - fz * back], tS = [tx + fx * ahead, ty + 0.8, tz + fz * ahead];
+      const maxB = portrait ? 4.2 : 4.0, back = camMap.b, pit = ctx.cam.p || 0, hgt = (portrait ? 3.9 : 3.3) + (maxB - back) * 0.45 - pit * 1.5, ahead = (portrait ? 1.3 : 1.6) * back / maxB;
+      const pS = [tx - fx * back, ty + hgt, tz - fz * back], tS = [tx + fx * ahead, ty + 0.8 + pit * 0.6, tz + fz * ahead];
       pD = pT.map((v, i) => v + (pS[i] - v) * w); tD = tT.map((v, i) => v + (tS[i] - v) * w);
       fov = 42 + ((portrait ? 70 : 60) - 42) * w;
     }
