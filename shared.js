@@ -3,7 +3,7 @@
 (function (out) {
   // ---- Tuning: every gameplay number lives here ----
   const CFG = {
-    roundLength: 180,      // seconds per round
+    roundLength: 240,      // seconds per round
     countdown: 5,          // "get ready" seconds before each round
     wipeCooldown: 20,      // towel unusable for this long after a wipe down
     wipeAmount: 100,       // fatigue removed by a wipe down
@@ -36,7 +36,12 @@
     lockoutTime: 4         // seconds frozen by a staff lecture
   };
 
-  const W = 1500, H = 920;
+  // Map: ground floor (0..1800 x 0..1100) and an upstairs mezzanine stored off to the right (2000..2700 x 0..520).
+  const W = 2700, H = 1100;
+  const FLOORS = [
+    { id: 0, n: 'Ground floor', x: 0, y: 0, w: 1800, h: 1100 },
+    { id: 1, n: 'Upstairs', x: 2000, y: 0, w: 700, h: 520, elev: 3.6 }
+  ];
   const GROUPS = {
     chest: { n: 'Chest', c: '#E2544B' },
     back: { n: 'Back', c: '#2FA39A' },
@@ -54,38 +59,89 @@
     ['chest', 'back', 'shoulders']
   ];
   const MACH = [
-    ['Flat bench', 'chest', 120, 140, 110, 50, 1],
-    ['Incline bench', 'chest', 290, 140, 110, 50, 1.05],
-    ['Dumbbell rack', 'arms', 460, 130, 170, 40, 0.95],
-    ['Preacher curl', 'arms', 690, 140, 80, 60, 1],
-    ['Squat rack 1', 'legs', 880, 110, 90, 90, 1.3],
-    ['Squat rack 2', 'legs', 1030, 110, 90, 90, 1.3],
-    ['Smith machine', 'shoulders', 1190, 110, 110, 90, 1.15],
-    ['Pec deck', 'chest', 120, 420, 90, 70, 0.9],
-    ['Shoulder press', 'shoulders', 280, 420, 90, 70, 1],
-    ['Lat pulldown', 'back', 440, 420, 90, 70, 1],
-    ['Seated row', 'back', 600, 420, 100, 70, 0.95],
-    ['Cable stack', 'back', 770, 410, 110, 80, 0.9],
-    ['Leg press', 'legs', 960, 420, 110, 80, 1.15],
-    ['Leg extension', 'legs', 1130, 420, 90, 70, 1],
-    ['Lateral raise', 'shoulders', 1290, 420, 90, 70, 1]
+    ['Flat bench', 'chest', 2240, 100, 110, 50, 1],
+    ['Incline bench', 'chest', 2420, 100, 110, 50, 1.05],
+    ['Dumbbell rack', 'arms', 300, 400, 170, 40, 0.95],
+    ['Preacher curl', 'arms', 600, 420, 80, 60, 1],
+    ['Squat rack 1', 'legs', 1220, 90, 90, 90, 1.3],
+    ['Squat rack 2', 'legs', 1380, 90, 90, 90, 1.3],
+    ['Smith machine', 'shoulders', 820, 400, 110, 90, 1.15],
+    ['Pec deck', 'chest', 2580, 90, 90, 70, 0.9],
+    ['Shoulder press', 'shoulders', 400, 620, 90, 70, 1],
+    ['Lat pulldown', 'back', 140, 100, 90, 70, 1],
+    ['Seated row', 'back', 470, 100, 100, 70, 0.95],
+    ['Cable stack', 'back', 800, 90, 110, 80, 0.9],
+    ['Leg press', 'legs', 1540, 90, 110, 80, 1.15],
+    ['Leg extension', 'legs', 1690, 90, 90, 70, 1],
+    ['Lateral raise', 'shoulders', 640, 620, 90, 70, 1]
   ].map((a, i) => ({ id: i, name: a[0], g: a[1], x: a[2], y: a[3], w: a[4], h: a[5], spd: a[6] }));
-  const TREADS = [0, 1, 2, 3, 4].map(i => ({ x: 120 + i * 110, y: 690, w: 80, h: 120 }));
-  const DESK = { x: 1180, y: 800, w: 220, h: 60 };
-  const SOLIDS = [...MACH, ...TREADS, DESK];
-  const REST = [
-    { x: 60, y: 600, r: 52, n: 'Fountain' },
-    { x: 1440, y: 560, r: 52, n: 'Fountain' },
-    { x: 890, y: 760, r: 92, n: 'Stretch mat' }
+  // Areas (floor colour + painted name)
+  const ZONES = [
+    { n: 'Cable alley', x: 0, y: 0, w: 1150, h: 308, floor: '#38454F' },
+    { n: 'Main hall', x: 0, y: 308, w: 1150, h: 792, floor: '#3B4252' },
+    { n: 'Stairs', x: 0, y: 520, w: 200, h: 580, floor: '#4B505C' },
+    { n: 'Corridor', x: 1180, y: 380, w: 150, h: 720, floor: '#444A57' },
+    { n: 'Leg room', x: 1180, y: 0, w: 620, h: 380, floor: '#47394A' },
+    { n: 'Chest floor', x: 2000, y: 0, w: 700, h: 520, floor: '#4A3A3D' }
   ];
-  const DOOR = { x: 1488, y: 700 };
-  const STAFF_PATH = [[700, 300], [1440, 300], [1440, 640], [700, 640], [80, 660], [80, 300]];
+  // Solid walls. t: wall (full height), half (waist-high), rail (railing), lockers (closed block)
+  const WALLS = [
+    { x: 1150, y: 0, w: 30, h: 900, t: 'wall' },
+    { x: 1330, y: 380, w: 470, h: 720, t: 'lockers' },
+    { x: 0, y: 300, w: 420, h: 16, t: 'half' }, { x: 560, y: 300, w: 260, h: 16, t: 'half' }, { x: 960, y: 300, w: 190, h: 16, t: 'half' },
+    { x: 200, y: 520, w: 14, h: 480, t: 'rail' },
+    { x: 2200, y: 506, w: 500, h: 14, t: 'rail' }
+  ];
+  // Walking into a trigger moves you between floors
+  const STAIRS = [
+    { x: 0, y: 520, w: 200, h: 50, to: [2100, 468], floor: 1, n: 'Up to the chest floor' },
+    { x: 2000, y: 498, w: 200, h: 22, to: [100, 615], floor: 0, n: 'Back downstairs' }
+  ];
+  const TREADS = [0, 1, 2].map(i => ({ x: 2260 + i * 110, y: 300, w: 80, h: 120 }));
+  const DESK = { x: 760, y: 960, w: 240, h: 60 };
+  const SOLIDS = [...MACH, ...TREADS, DESK, ...WALLS];
+  const REST = [
+    { x: 930, y: 720, r: 92, n: 'Stretch mat' },
+    { x: 1090, y: 200, r: 52, n: 'Fountain' },
+    { x: 1610, y: 318, r: 52, n: 'Fountain' },
+    { x: 2640, y: 400, r: 52, n: 'Fountain' }
+  ];
+  const DOOR = { x: 1080, y: 1100 };
+  const SPAWN = i => [1130 - (i % 8) * 34, 1062];
+  const STAFF_PATH = [[300, 860], [1050, 860], [1255, 960], [1255, 300], [1600, 300], [1255, 300], [1255, 960], [1050, 860], [900, 560], [500, 560]];
+  // Walking graph for practice dummies. Directed pairs go through the stair triggers.
+  const NAV = {
+    A: [680, 780], B: [300, 780], Q: [300, 1060], H: [1050, 880], C: [490, 350], D: [890, 350], E: [490, 250], F: [890, 250], G: [180, 240],
+    K1: [1255, 1000], K2: [1255, 430], LR: [1480, 260], L: [100, 1060], M: [100, 620], SG: [100, 540], N: [2100, 450], SU: [2100, 512], O: [2380, 240], P: [2620, 240]
+  };
+  const NAV_EDGES = [['A', 'B'], ['A', 'H'], ['B', 'Q'], ['Q', 'L'], ['Q', 'H'], ['L', 'M'], ['C', 'A'], ['D', 'A'], ['C', 'B'], ['D', 'H'], ['C', 'E'], ['D', 'F'], ['E', 'F'], ['E', 'G'],
+    ['H', 'K1'], ['K1', 'K2'], ['K2', 'LR'], ['N', 'O'], ['O', 'P'], ['M>SG'], ['SG>N'], ['N>SU'], ['SU>M']];
+  const zoneOf = (x, y) => x >= 1900 ? 'up' : (x < 200 && y > 520) ? 'stairs' : (x >= 1180 && y < 380) ? 'legs' : x >= 1180 ? 'corr' : y < 308 ? 'alley' : 'main';
+  const floorOf = x => (x >= 1900 ? 1 : 0);
   const COLOURS = ['#3C82FF', '#E2544B', '#2FBF71', '#FFC93C', '#B07CFF', '#FF7AC8'];
   const EMOTES = ['How many sets left?', 'Mine.', 'Spot me?', 'Lightweight!'];
 
   const dist = (a, b, c, d) => Math.hypot(a - c, b - d);
   const useSpot = m => ({ x: m.x + m.w / 2, y: m.y + m.h + 22 });
   const inRest = (x, y) => REST.some(r => dist(x, y, r.x, r.y) < r.r);
+  const inRect = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  const stairAt = (x, y) => STAIRS.find(s => inRect(x, y, s));
+  // Shortest route through the walking graph (breadth-first). Returns a list of [x, y] points.
+  function route(x, y, tx, ty) {
+    const za = zoneOf(x, y), zb = zoneOf(tx, ty);
+    if (za === zb && za !== 'stairs') return [[tx, ty]];
+    const adj = {}; Object.keys(NAV).forEach(k => adj[k] = []);
+    NAV_EDGES.forEach(e => { if (e.length === 1) { const [a, b] = e[0].split('>'); adj[a].push(b); } else { adj[e[0]].push(e[1]); adj[e[1]].push(e[0]); } });
+    const near = (px, py, z) => { let best = null, bd = 1e9; for (const k in NAV) { const [nx, ny] = NAV[k]; if (zoneOf(nx, ny) !== z) continue; const d = dist(px, py, nx, ny); if (d < bd) { bd = d; best = k; } } return best; };
+    const s = near(x, y, za), g = near(tx, ty, zb);
+    if (!s || !g) return [[tx, ty]];
+    const prev = { [s]: null }, q = [s];
+    while (q.length) { const k = q.shift(); if (k === g) break; for (const n of adj[k]) if (!(n in prev)) { prev[n] = k; q.push(n); } }
+    if (!(g in prev)) return [[tx, ty]];
+    const path = []; for (let k = g; k; k = prev[k]) path.unshift(NAV[k]);
+    path.push([tx, ty]);
+    return path;
+  }
   // Push a circle (radius 15) out of machines and keep it inside the gym.
   function collide(o) {
     for (const r of SOLIDS) {
@@ -96,9 +152,10 @@
         else { o.x = nx + (o.x - nx) / d * 15; o.y = ny + (o.y - ny) / d * 15; }
       }
     }
-    o.x = Math.max(15, Math.min(W - 15, o.x));
-    o.y = Math.max(72, Math.min(H - 15, o.y));
+    const f = FLOORS[floorOf(o.x)];
+    o.x = Math.max(f.x + 15, Math.min(f.x + f.w - 15, o.x));
+    o.y = Math.max(72, Math.min(f.y + f.h - 15, o.y));
   }
 
-  Object.assign(out, { CFG, W, H, GROUPS, GK, PROGRAMS, MACH, TREADS, DESK, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, collide });
+  Object.assign(out, { CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, TREADS, DESK, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, route, zoneOf, floorOf, collide });
 })(typeof module !== 'undefined' ? module.exports : (window.SHARED = {}));

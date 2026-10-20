@@ -53,6 +53,10 @@ Render redeploys automatically. Anyone mid-game gets disconnected and can hit **
 3. The host presses **Start round**. Everyone gets a 5 second countdown, then the round starts. Up to 6 players per room.
 4. Playing alone? The host can **Add a practice dummy** (up to 3) to test against.
 
+The gym has separate areas: the main hall (arms and shoulders), cable alley (back), a long corridor
+past the locker room to the leg room, and stairs up to the chest floor. Each area has its own rest spot.
+There's no staff upstairs.
+
 Phone: drag on the left side to move, buttons on the right.
 PC: WASD or arrows, Space rep, E use or step off, Q throw towel, C wipe down, F shove, R "Yep, using it", 1–4 quick chat.
 

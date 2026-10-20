@@ -49,7 +49,7 @@ function makeRoom(code) {
   const r = {
     code, players: new Map(), st: 'lobby', t: 0, prog: S.PROGRAMS[0],
     m: S.MACH.map(() => ({ user: null, claim: null })),
-    staff: { x: 700, y: 300, i: 1 }, asks: [], ev: [], host: null, res: null,
+    staff: { x: S.STAFF_PATH[0][0], y: S.STAFF_PATH[0][1], i: 1 }, asks: [], ev: [], host: null, res: null,
     firstDone: false, warned: false
   };
   rooms.set(code, r);
@@ -59,7 +59,7 @@ function makeRoom(code) {
 function freshStats() { return { shoves: 0, shoved: 0, steals: 0, perfects: 0, reps: 0, pulls: 0, strikes: 0, wipes: 0, misses: 0 }; }
 function resetPlayer(p, i) {
   Object.assign(p, {
-    x: 1300 - (i % 6) * 45, y: 650, on: null, fat: 0, combo: 0, miss: 0, stun: 0, kvx: 0, kvy: 0,
+    x: S.SPAWN(i)[0], y: S.SPAWN(i)[1], on: null, stairCd: 0, posIgnore: 0, fat: 0, combo: 0, miss: 0, stun: 0, kvx: 0, kvy: 0,
     shoveCd: 0, askCd: 0, towelCd: 0, limp: 0, idle: 0, heat: 0, strikes: 0, gains: 0, claim: null, lock: 0,
     lastRep: 0, lastPos: Date.now(), done: false, em: '', emT: 0, emCd: 0,
     grp: Object.fromEntries(S.GK.map(k => [k, { p: 0, pulled: false }])),
@@ -282,7 +282,13 @@ function movePlayer(r, p, x, y) {
   const now = Date.now();
   const dt = Math.min(0.5, (now - p.lastPos) / 1000);
   p.lastPos = now;
-  if (r.st !== 'playing' || p.on !== null || p.stun > 0 || p.lock > 0) return;
+  if (r.st !== 'playing' || p.on !== null || p.stun > 0 || p.lock > 0 || p.posIgnore > 0) return;
+  // The browser took the stairs a moment before the server did: follow it if it's next to a staircase
+  if (S.floorOf(x) !== S.floorOf(p.x)) {
+    const st = S.STAIRS.find(t => t.floor === S.floorOf(x) && dist(p.x, p.y, t.x + t.w / 2, t.y + t.h / 2) < 170);
+    if (st && p.stairCd <= 0) { p.x = st.to[0]; p.y = st.to[1]; p.stairCd = 0.8; p.posIgnore = 0.2; say(r, p, st.floor ? 'Upstairs: chest floor' : 'Ground floor', '#BFE8FF'); }
+    return;
+  }
   // Trust the browser's movement, but not faster than walking speed.
   const max = C.playerSpeed * (p.limp > 0 ? 0.55 : 1) * dt * 1.5 + 12;
   let dx = x - p.x, dy = y - p.y;
@@ -299,18 +305,9 @@ function emote(r, p, e) {
 }
 
 // ---------- practice dummies (server-controlled players) ----------
-const GAPS = [240, 400, 565, 735, 920, 1100, 1255, 1430];
-const corr = y => (y < 370 ? 300 : 600);
-function route(x, y, tx, ty) {
-  const a = corr(y), b = corr(ty), pts = [];
-  if (a === b) pts.push([x, a], [tx, a]);
-  else {
-    const gx = GAPS.reduce((best, g) => (Math.abs(g - x) + Math.abs(g - tx) < Math.abs(best - x) + Math.abs(best - tx) ? g : best), GAPS[0]);
-    pts.push([x, a], [gx, a], [gx, b], [tx, b]);
-  }
-  pts.push([tx, ty]);
-  return pts;
-}
+const route = S.route;
+// After going up or down stairs, skip waypoints that were on the old floor
+function trimPath(p) { const b = p.bt; if (!b.path) return; const f = S.floorOf(p.x); while (b.path.length && S.floorOf(b.path[0][0]) !== f) b.path.shift(); }
 function botThink(r, p, dt) {
   const b = p.bt;
   const ask = r.asks.find(q => q.owner === p.id);
@@ -338,7 +335,7 @@ function botThink(r, p, dt) {
     if (p.fat > 40 && p.towelCd <= 0 && b.wiper) act(r, p, 'wipe');
     if (p.fat > 40) {
       let best = S.REST[0], bd = 1e9;
-      for (const z of S.REST) { const d = dist(p.x, p.y, z.x, z.y); if (d < bd) { bd = d; best = z; } }
+      for (const z of S.REST) { if (S.floorOf(z.x) !== S.floorOf(p.x)) continue; const d = dist(p.x, p.y, z.x, z.y) * (S.zoneOf(z.x, z.y) === S.zoneOf(p.x, p.y) ? 0.5 : 1); if (d < bd) { bd = d; best = z; } }
       b.goal = 'rest'; b.path = route(p.x, p.y, best.x + rnd(-20, 20), best.y + rnd(-20, 20));
     } else {
       let target = p.claim;
@@ -384,7 +381,7 @@ function startRound(r) {
   r.prog = S.PROGRAMS[Math.floor(Math.random() * S.PROGRAMS.length)];
   r.m.forEach(m => { m.user = null; m.claim = null; });
   r.asks = []; r.firstDone = false; r.warned = false;
-  r.staff = { x: 700, y: 300, i: 1 };
+  r.staff = { x: S.STAFF_PATH[0][0], y: S.STAFF_PATH[0][1], i: 1 };
   let i = 0;
   for (const p of r.players.values()) resetPlayer(p, i++);
 }
@@ -427,11 +424,19 @@ function tick(r, dt) {
 
   for (const p of r.players.values()) {
     p.stun = Math.max(0, p.stun - dt); p.lock = Math.max(0, p.lock - dt);
-    p.shoveCd = Math.max(0, p.shoveCd - dt); p.askCd = Math.max(0, p.askCd - dt); p.towelCd = Math.max(0, p.towelCd - dt); p.limp = Math.max(0, p.limp - dt);
+    p.shoveCd = Math.max(0, p.shoveCd - dt); p.askCd = Math.max(0, p.askCd - dt); p.towelCd = Math.max(0, p.towelCd - dt); p.stairCd = Math.max(0, p.stairCd - dt); p.posIgnore = Math.max(0, p.posIgnore - dt); p.limp = Math.max(0, p.limp - dt);
     if (p.stun > 0 && (Math.abs(p.kvx) > 5 || Math.abs(p.kvy) > 5)) {
       p.x += p.kvx * dt; p.y += p.kvy * dt;
       p.kvx *= Math.pow(0.03, dt); p.kvy *= Math.pow(0.03, dt);
       S.collide(p);
+    }
+    if (p.on === null && p.stun <= 0 && p.lock <= 0 && p.stairCd <= 0) {
+      const st = S.stairAt(p.x, p.y);
+      if (st) {
+        p.x = st.to[0]; p.y = st.to[1]; p.tp++; p.stairCd = 0.8; p.posIgnore = 0.35;
+        say(r, p, st.floor ? 'Upstairs: chest floor' : 'Ground floor', '#BFE8FF');
+        if (p.bot) trimPath(p);
+      }
     }
     const resting = p.on === null && S.inRest(p.x, p.y);
     if (p.on === null) p.fat = Math.max(0, p.fat - (resting ? C.recoverRest : C.recoverWalk) * dt);

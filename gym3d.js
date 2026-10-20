@@ -4,7 +4,7 @@
 (function (out) {
   const T = THREE, V3 = T.Vector3, UP = new V3(0, 1, 0);
   const SCALE = 0.02; // 2D map pixels -> metres
-  const toWorld = (x, y) => [(x - 750) * SCALE, (y - 460) * SCALE];
+  const toWorld = (x, y) => [((x >= 1900 ? x - 2000 : x) - 900) * SCALE, (y - 550) * SCALE];
 
   // ---------- materials ----------
   const matCache = {};
@@ -124,7 +124,7 @@
     o = Object.assign({ w: 512, h: 256, bg: '#15171C', fg: '#FFC93C', font: 'Impact, "Arial Black", sans-serif', size: 90, border: null }, o || {});
     const cv = document.createElement('canvas'); cv.width = o.w; cv.height = o.h;
     const x = cv.getContext('2d');
-    x.fillStyle = o.bg; x.fillRect(0, 0, o.w, o.h);
+    if (o.bg !== 'none') { x.fillStyle = o.bg; x.fillRect(0, 0, o.w, o.h); }
     if (o.border) { x.strokeStyle = o.border; x.lineWidth = 14; x.strokeRect(10, 10, o.w - 20, o.h - 20); }
     x.textAlign = 'center'; x.textBaseline = 'middle';
     lines.forEach((l, i) => {
@@ -640,20 +640,20 @@
   function buildMachine(m, groupColour) {
     const b = MB[TYPE[m.name]](groupColour);
     const [x, z] = toWorld(m.x + m.w / 2, m.y + m.h / 2);
-    b.g.position.set(x, 0, z);
+    b.g.position.set(x, m.x >= 1900 ? 3.6 : 0, z);
     b.def = m;
     return b;
   }
 
   // ---------- the gym room ----------
-  function floorTexture() {
+  function floorTexture(w, d) {
     const cv = document.createElement('canvas'); cv.width = cv.height = 256;
     const x = cv.getContext('2d');
     x.fillStyle = '#3A3D46'; x.fillRect(0, 0, 256, 256);
     for (let i = 0; i < 2600; i++) { x.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.12)'; x.fillRect(Math.random() * 256, Math.random() * 256, 2, 2); }
     for (let i = 0; i < 110; i++) { x.fillStyle = ['#5E8FB0', '#B05E5E', '#C9A15A', '#7FB07F'][i % 4]; x.globalAlpha = 0.35; x.fillRect(Math.random() * 256, Math.random() * 256, 3, 2); }
     x.globalAlpha = 1; x.strokeStyle = 'rgba(0,0,0,.45)'; x.lineWidth = 3; x.strokeRect(0, 0, 256, 256);
-    const t = new T.CanvasTexture(cv); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(30 / 1.5, 18.4 / 1.5); t.anisotropy = 8;
+    const t = new T.CanvasTexture(cv); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set((w || 36) / 1.5, (d || 22) / 1.5); t.anisotropy = 8;
     return t;
   }
   function mirrorTexture() {
@@ -719,107 +719,144 @@
     mesh(new T.TorusGeometry(0.07, 0.018, 6, 12, Math.PI), std(col || '#2B2F38', 0.5, 0.3), g, [0, 0.2, 0]);
     return g;
   }
-  function buildRoom(scene, shared) {
+  // ---------- the gym building (two floors) ----------
+  const ELEV = 3.6;
+  function heightAt(x, y) { if (x >= 1900) return ELEV; if (x < 200 && y > 520 && y < 1000) return y <= 570 ? ELEV : (1000 - y) / 430 * ELEV; return 0; }
+  const map3 = (x, y) => { const [X, Z] = toWorld(x, y); return [X, heightAt(x, y), Z]; };
+  function buildRoom(scene, sh) {
     const R = new T.Group(); scene.add(R);
-    const W = 30, D = 18.4, H = 3.4;
-    // floor
-    const fl = mesh(new T.PlaneGeometry(W, D), new T.MeshStandardMaterial({ map: floorTexture(), roughness: 0.95 }), R, [0, 0, 0], [-Math.PI / 2, 0, 0]);
-    fl.castShadow = false;
-    // walls: teal dado, orange stripe, cream top
-    const wallM = std('#EFE3CF', 0.9), dado = std('#2F8F8A', 0.85), stripe = std('#FF8A2B', 0.7), skirting = std('#22252B', 0.8);
-    function wall(len, pos, rotY, opts) {
-      const g = group(R, pos, [0, rotY, 0]);
-      box(len, H - 1.12, 0.2, wallM, g, [0, 1.12 + (H - 1.12) / 2, 0]);
-      box(len, 1.04, 0.22, dado, g, [0, 0.52 + 0.04, 0]);
-      box(len, 0.08, 0.24, stripe, g, [0, 1.1, 0]);
-      box(len, 0.08, 0.24, skirting, g, [0, 0.04, 0]);
-      box(len, 0.08, 0.26, std('#D9CCB5', 0.8), g, [0, H, 0]);
+    const up = new T.Group(); R.add(up);
+    const X = x => (x - 900) * SCALE, Z = y => (y - 550) * SCALE, Wd = 36, Dp = 22, H1 = 3.4, H2 = 7.2;
+    const wallM = std('#EFE3CF', 0.9), dado = std('#2F8F8A', 0.85), stripe = std('#FF8A2B', 0.7), skirt = std('#22252B', 0.8);
+    // floor + tinted areas
+    const fl = mesh(new T.PlaneGeometry(Wd, Dp), new T.MeshStandardMaterial({ map: floorTexture(Wd, Dp), roughness: 0.95 }), R, [0, 0, 0], [-Math.PI / 2, 0, 0]); fl.castShadow = false;
+    sh.ZONES.forEach(z => {
+      const upz = z.x >= 1900, x0 = upz ? z.x - 2000 : z.x;
+      const p = mesh(new T.PlaneGeometry(z.w * SCALE, z.h * SCALE), new T.MeshBasicMaterial({ color: z.floor, transparent: true, opacity: 0.38, depthWrite: false }), upz ? up : R, [X(x0 + z.w / 2), (upz ? ELEV : 0) + 0.008, Z(z.y + z.h / 2)], [-Math.PI / 2, 0, 0]);
+      p.castShadow = false; p.receiveShadow = false;
+    });
+    const decal = (t, x, y, w, rotZ, parent, elev) => { const s = sign(parent || R, [{ t, size: 150, c: 'rgba(255,255,255,.16)' }], w, w / 4, [X(x), (elev || 0) + 0.012, Z(y)], [-Math.PI / 2, 0, rotZ || 0], { bg: 'none' }); s.material.transparent = true; s.material.depthWrite = false; s.receiveShadow = false; return s; };
+    decal('CABLE ALLEY', 660, 262, 7); decal('MAIN HALL', 600, 880, 7); decal('LEG ROOM', 1500, 345, 6); decal('CORRIDOR', 1255, 700, 7, Math.PI / 2);
+    decal('CHEST FLOOR', 350, 470, 6, 0, up, ELEV);
+    for (let y = 1000; y > 420; y -= 90) { const a = sign(R, [{ t: '▲', size: 300, c: 'rgba(255,201,60,.55)' }], 1.0, 1.0, [X(1255), 0.013, Z(y)], [-Math.PI / 2, 0, 0], { bg: 'none', w: 256, h: 256 }); a.material.transparent = true; a.material.depthWrite = false; }
+    // walls: axis-aligned between two map points
+    function wall(x1, y1, x2, y2, h, opts) {
+      opts = opts || {};
+      const horiz = y1 === y2, len = (horiz ? Math.abs(x2 - x1) : Math.abs(y2 - y1)) * SCALE, th = opts.th || 0.2;
+      const g = group(opts.parent || R, [X((x1 + x2) / 2), opts.base || 0, Z((y1 + y2) / 2)], [0, horiz ? 0 : Math.PI / 2, 0]);
+      if (opts.low) { box(len, h, th, dado, g, [0, h / 2, 0]); box(len, 0.06, th + 0.04, stripe, g, [0, h, 0]); return g; }
+      box(len, Math.max(0.01, h - 1.12), th, wallM, g, [0, 1.12 + (h - 1.12) / 2, 0]);
+      box(len, 1.04, th + 0.02, dado, g, [0, 0.56, 0]); box(len, 0.08, th + 0.04, stripe, g, [0, 1.1, 0]); box(len, 0.08, th + 0.04, skirt, g, [0, 0.04, 0]);
+      box(len, 0.08, th + 0.06, std('#D9CCB5', 0.8), g, [0, h, 0]);
       return g;
     }
-    const back = wall(W, [0, 0, -D / 2 - 0.1], 0);
-    wall(D, [-W / 2 - 0.1, 0, 0], Math.PI / 2);
-    // right wall with a doorway
-    const doorZ = toWorld(shared.DOOR.x, shared.DOOR.y)[1];
-    const r1 = D / 2 + doorZ - 0.9, r2 = D / 2 - doorZ - 0.9;
-    wall(r1, [W / 2 + 0.1, 0, -D / 2 + r1 / 2], -Math.PI / 2);
-    wall(r2, [W / 2 + 0.1, 0, D / 2 - r2 / 2], -Math.PI / 2);
-    const dg = group(R, [W / 2 + 0.1, 0, doorZ]);
-    box(0.24, 2.4, 0.1, M.frame(), dg, [0, 1.2, -0.85]); box(0.24, 2.4, 0.1, M.frame(), dg, [0, 1.2, 0.85]); box(0.24, 0.12, 1.8, M.frame(), dg, [0, 2.4, 0]);
-    box(0.2, H - 2.46, 1.8, wallM, dg, [0, 2.46 + (H - 2.46) / 2, 0]);
-    const glass = new T.MeshStandardMaterial({ color: '#A8D8EA', roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.45 });
-    box(0.04, 2.3, 0.8, glass, dg, [0, 1.17, -0.42]).castShadow = false; box(0.04, 2.3, 0.8, glass, dg, [0.25, 1.17, 0.5], [0, -0.7, 0]).castShadow = false;
-    sign(dg, [{ t: 'EXIT', size: 170, c: '#FFFFFF' }], 0.6, 0.22, [-0.13, 2.7, 0], [0, -Math.PI / 2, 0], { bg: '#1E9E4A' }, true);
-    // low front wall so the camera can see in (dollhouse cut)
-    const fr = group(R, [0, 0, D / 2 + 0.1]);
-    box(W + 0.4, 0.55, 0.2, dado, fr, [0, 0.275, 0]); box(W + 0.4, 0.06, 0.24, stripe, fr, [0, 0.58, 0]);
-    // mirrors along the back wall + big sign in the middle
-    const mirM = new T.MeshStandardMaterial({ map: mirrorTexture(), roughness: 0.05, metalness: 0.35 });
-    for (let i = 0; i < 12; i++) {
-      if (i === 6) continue;
-      const [mx] = toWorld(30 + i * 122 + 50, 0);
-      box(1.9, 1.9, 0.04, M.frame(), back, [mx, 1.45, 0.12]);
-      const mm = mesh(new T.PlaneGeometry(1.8, 1.8), mirM, back, [mx, 1.45, 0.145]); mm.castShadow = false;
+    wall(0, -5, 1800, -5, H2); wall(-5, 0, -5, 1100, H2); wall(1805, 0, 1805, 1100, H2);
+    wall(0, 1105, 1040, 1105, 0.55, { low: true }); wall(1120, 1105, 1800, 1105, 0.55, { low: true });
+    // door
+    const dg = group(R, [X(1080), 0, Z(1105)]);
+    box(0.12, 2.4, 0.24, M.frame(), dg, [-0.85, 1.2, 0]); box(0.12, 2.4, 0.24, M.frame(), dg, [0.85, 1.2, 0]); box(1.82, 0.12, 0.24, M.frame(), dg, [0, 2.4, 0]);
+    const glass = new T.MeshStandardMaterial({ color: '#A8D8EA', roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.4 });
+    const gd = box(0.8, 2.3, 0.04, glass, dg, [-0.42, 1.17, 0]); gd.castShadow = false; const gd2 = box(0.8, 2.3, 0.04, glass, dg, [0.55, 1.17, 0.3], [0, 0.8, 0]); gd2.castShadow = false;
+    sign(dg, [{ t: 'EXIT', size: 170, c: '#FFFFFF' }], 0.6, 0.22, [0, 2.72, -0.13], [0, Math.PI, 0], { bg: '#1E9E4A' }, true);
+    // interior walls, half walls, railings, lockers
+    sh.WALLS.forEach(w => {
+      if (w.t === 'wall') { wall(w.x + w.w / 2, w.y, w.x + w.w / 2, w.y + w.h, H1, { th: w.w * SCALE }); }
+      else if (w.t === 'half') { const g = group(R, [X(w.x + w.w / 2), 0, Z(w.y + w.h / 2)]); box(w.w * SCALE, 1.0, w.h * SCALE, dado, g, [0, 0.5, 0]); box(w.w * SCALE + 0.04, 0.06, w.h * SCALE + 0.06, stripe, g, [0, 1.02, 0]); }
+      else if (w.t === 'lockers') {
+        const g = group(R, [X(w.x + w.w / 2), 0, Z(w.y + w.h / 2)]), bw = w.w * SCALE, bd = w.h * SCALE;
+        box(bw, 2.5, bd, std('#2A2F3A', 0.8), g, [0, 1.25, 0]); box(bw + 0.1, 0.1, bd + 0.1, std('#3A3F4B', 0.85), g, [0, 2.55, 0]);
+        for (let i = 0; i < 3; i++) box(bw - 0.6, 0.06, 0.5, std('#4A5060', 0.7, 0.3), g, [0, 2.62, -bd / 2 + 2 + i * (bd - 4) / 2]);
+        const lt = sign(g, [{ t: 'LOCKER ROOM', size: 150, c: 'rgba(255,255,255,.22)' }], 7, 1.75, [0, 2.66, 0], [-Math.PI / 2, 0, Math.PI / 2], { bg: 'none' }); lt.material.transparent = true;
+        const doorA = std('#4E6E8E', 0.5, 0.2), doorB = std('#5A7C9C', 0.5, 0.2);
+        for (let i = 0; i < Math.floor(bd / 0.42); i++) { box(0.03, 1.9, 0.38, i % 2 ? doorA : doorB, g, [-bw / 2 - 0.016, 1.05, -bd / 2 + 0.25 + i * 0.42]); box(0.03, 0.04, 0.12, M.chrome(), g, [-bw / 2 - 0.035, 1.05, -bd / 2 + 0.36 + i * 0.42]); }
+        for (let i = 0; i < Math.floor(bw / 0.42); i++) box(0.38, 1.9, 0.03, i % 2 ? doorA : doorB, g, [-bw / 2 + 0.25 + i * 0.42, 1.05, -bd / 2 - 0.016]);
+        sign(g, [{ t: 'LOCKER ROOM', size: 110, c: '#F4F1EA' }, { t: 'members only', size: 50, c: '#9AA0AB', weight: '700' }], 2.2, 0.6, [-bw / 2 - 0.04, 2.25, 0], [0, -Math.PI / 2, 0], { bg: '#15171C' });
+      } else if (w.t === 'rail') {
+        const upr = w.x >= 1900, x0 = upr ? w.x - 2000 : w.x, vert = w.h > w.w;
+        const pts = []; const n = Math.max(2, Math.round((vert ? w.h : w.w) / 60));
+        for (let i = 0; i <= n; i++) { const px = vert ? x0 + w.w / 2 : x0 + w.w * i / n, py = vert ? w.y + w.h * i / n : w.y + w.h / 2; pts.push([X(px), upr ? ELEV : heightAt(px - 1, py), Z(py)]); }
+        pts.forEach(p => tube(p, [p[0], p[1] + 1.0, p[2]], 0.025, M.chrome(), upr ? up : R));
+        for (let i = 0; i < pts.length - 1; i++) { tube([pts[i][0], pts[i][1] + 1.0, pts[i][2]], [pts[i + 1][0], pts[i + 1][1] + 1.0, pts[i + 1][2]], 0.03, M.steel(), upr ? up : R);
+          if (upr) { const a = pts[i], b = pts[i + 1]; const gp = mesh(boxG(Math.max(0.02, Math.abs(b[0] - a[0])), 0.8, Math.max(0.02, Math.abs(b[2] - a[2]))), glass, up, [(a[0] + b[0]) / 2, ELEV + 0.5, (a[2] + b[2]) / 2]); gp.castShadow = false; } }
+      }
+    });
+    // staircase along the left wall, rising towards the back
+    const stepM = std('#8A5A30', 0.8), nose = std('#FFC93C', 0.6);
+    const steps = 20, sy0 = 1000, sy1 = 570, sd = (sy0 - sy1) / steps;
+    for (let i = 0; i < steps; i++) {
+      const h = (i + 1) * ELEV / steps, yc = sy0 - (i + 0.5) * sd;
+      box(200 * SCALE, h, sd * SCALE, stepM, R, [X(100), h / 2, Z(yc)]);
+      box(200 * SCALE, 0.02, 0.05, nose, R, [X(100), h + 0.005, Z(yc + sd / 2) - 0.03]);
     }
-    const [sx] = toWorld(850, 0);
-    box(2.3, 1.2, 0.08, std('#15171C', 0.6), back, [sx, 2.2, 0.14]);
-    sign(back, [{ t: "BIG GAZ'S GYM", size: 120, c: '#FFC93C' }, { t: 'EST. LAST TUESDAY', size: 54, c: '#F4F1EA', weight: '700' }], 2.2, 1.0, [sx, 2.2, 0.19], null, { bg: '#15171C', border: '#FF8A2B' }, true);
-    sign(back, [{ t: 'MOST GAINS WINS', size: 90, c: '#15171C' }], 2.2, 0.36, [sx, 1.22, 0.19], null, { bg: '#FFC93C' });
-    // wall clock above sign
-    const clock = group(back, [sx, 3.05, 0.14]);
-    mesh(cylG(0.24, 0.24, 0.05, 20), std('#F4F1EA', 0.5), clock, null, [Math.PI / 2, 0, 0]);
-    mesh(new T.TorusGeometry(0.24, 0.025, 6, 20), M.black(), clock);
-    box(0.02, 0.17, 0.02, M.black(), clock, [0, 0.07, 0.03]); box(0.12, 0.02, 0.02, M.black(), clock, [0.05, 0, 0.03], [0, 0, -0.5]);
-    // posters on the left wall
-    const lw = group(R, [-W / 2 + 0.01, 0, 0], [0, Math.PI / 2, 0]);
-    sign(lw, [{ t: 'NO PAIN', size: 110 }, { t: 'NO GAIN', size: 110 }], 1.2, 1.6, [-5, 2.2, 0], null, { bg: '#E2544B', fg: '#FFFFFF' });
-    sign(lw, [{ t: 'PLEASE', size: 70, c: '#15171C' }, { t: 'WIPE DOWN', size: 90, c: '#15171C' }, { t: 'EQUIPMENT', size: 90, c: '#15171C' }, { t: '(we know you won\'t)', size: 40, c: '#4C5361', weight: '700' }], 1.3, 1.3, [1, 2.2, 0], null, { bg: '#F4F1EA', border: '#15171C' });
-    sign(lw, [{ t: 'NEVER', size: 90 }, { t: 'SKIP', size: 90 }, { t: 'LEG DAY', size: 90 }], 1.2, 1.6, [6, 2.2, 0], null, { bg: '#2F6FE0', fg: '#FFFFFF' });
-    // windows on the left wall
+    box(200 * SCALE, ELEV, 50 * SCALE, stepM, R, [X(100), ELEV / 2, Z(545)]);
+    sign(R, [{ t: 'CHEST FLOOR ↑', size: 110, c: '#15171C' }], 1.8, 0.45, [X(212) + 0.12, 1.5, Z(1030)], [0, Math.PI / 2, 0], { bg: '#FFC93C' });
+    // mezzanine (upstairs) over the back-left of the ground floor
+    const slabW = 700 * SCALE, slabD = 520 * SCALE;
+    const slab = box(slabW, 0.3, slabD, std('#5A4E4A', 0.8), up, [X(350), ELEV - 0.15, Z(260)]);
+    const top = mesh(new T.PlaneGeometry(slabW, slabD), new T.MeshStandardMaterial({ map: floorTexture(slabW, slabD), roughness: 0.95 }), up, [X(350), ELEV + 0.004, Z(260)], [-Math.PI / 2, 0, 0]); top.castShadow = false;
+    box(0.3, 0.45, slabD, std('#2B2F38', 0.6, 0.3), up, [X(700), ELEV - 0.25, Z(260)]);
+    box(slabW, 0.45, 0.3, std('#2B2F38', 0.6, 0.3), up, [X(350), ELEV - 0.25, Z(520)]);
+    box(0.32, ELEV, 0.32, std('#2B2F38', 0.6, 0.3), up, [X(700), ELEV / 2, Z(518)]);
+    // railing along the open right-hand edge of the mezzanine
+    for (let y = 10; y <= 510; y += 62.5) tube([X(700) - 0.08, ELEV, Z(y)], [X(700) - 0.08, ELEV + 1.0, Z(y)], 0.025, M.chrome(), up);
+    tube([X(700) - 0.08, ELEV + 1.0, Z(10)], [X(700) - 0.08, ELEV + 1.0, Z(510)], 0.03, M.steel(), up);
+    const rg = mesh(boxG(0.02, 0.8, 500 * SCALE), glass, up, [X(700) - 0.08, ELEV + 0.5, Z(260)]); rg.castShadow = false;
+    // mirrors: ground level along the back wall, and upstairs
+    const mirM = new T.MeshStandardMaterial({ map: mirrorTexture(), roughness: 0.05, metalness: 0.35 });
+    const mirror = (x, base, parent) => { box(1.9, 1.9, 0.04, M.frame(), parent, [X(x), base + 1.45, Z(0) + 0.02]); const mm = mesh(new T.PlaneGeometry(1.8, 1.8), mirM, parent, [X(x), base + 1.45, Z(0) + 0.045]); mm.castShadow = false; };
+    for (let x = 70; x < 1800; x += 122) { if (x > 700 && x < 1000) continue; if (x > 1100 && x < 1240) continue; mirror(x, 0, R); }
+    for (let x = 70; x < 700; x += 122) mirror(x, ELEV, up);
+    // signs and posters
+    box(2.3, 1.2, 0.08, std('#15171C', 0.6), R, [X(925), 4.9, Z(0) + 0.04]);
+    sign(R, [{ t: "BIG GAZ'S GYM", size: 120, c: '#FFC93C' }, { t: 'EST. LAST TUESDAY', size: 54, c: '#F4F1EA', weight: '700' }], 2.2, 1.0, [X(925), 4.9, Z(0) + 0.09], null, { bg: '#15171C', border: '#FF8A2B' }, true);
+    sign(R, [{ t: 'MOST GAINS WINS', size: 90, c: '#15171C' }], 2.6, 0.42, [X(850), 1.7, Z(0) + 0.06], null, { bg: '#FFC93C' });
+    const clock = group(R, [X(925), 6.0, Z(0) + 0.05]);
+    mesh(cylG(0.28, 0.28, 0.05, 20), std('#F4F1EA', 0.5), clock, null, [Math.PI / 2, 0, 0]); mesh(new T.TorusGeometry(0.28, 0.03, 6, 20), M.black(), clock);
+    box(0.02, 0.2, 0.02, M.black(), clock, [0, 0.08, 0.03]); box(0.14, 0.02, 0.02, M.black(), clock, [0.06, 0, 0.03], [0, 0, -0.5]);
+    const w1W = X(1150) - 0.01, w1E = X(1180) + 0.01;
+    sign(R, [{ t: 'NO PAIN', size: 110 }, { t: 'NO GAIN', size: 110 }], 1.2, 1.6, [w1W, 2.3, Z(560)], [0, -Math.PI / 2, 0], { bg: '#E2544B', fg: '#FFFFFF' });
+    sign(R, [{ t: 'PLEASE', size: 70, c: '#15171C' }, { t: 'WIPE DOWN', size: 90, c: '#15171C' }, { t: 'EQUIPMENT', size: 90, c: '#15171C' }, { t: "(we know you won't)", size: 40, c: '#4C5361', weight: '700' }], 1.3, 1.3, [w1W, 2.3, Z(760)], [0, -Math.PI / 2, 0], { bg: '#F4F1EA', border: '#15171C' });
+    sign(R, [{ t: 'LEG ROOM', size: 100, c: '#15171C' }, { t: 'straight ahead ↑', size: 60, c: '#15171C', weight: '700' }], 1.4, 0.7, [w1E, 2.1, Z(980)], [0, Math.PI / 2, 0], { bg: '#FFC93C' });
+    sign(R, [{ t: 'NEVER', size: 90 }, { t: 'SKIP', size: 90 }, { t: 'LEG DAY', size: 90 }], 1.2, 1.6, [w1E, 2.2, Z(620)], [0, Math.PI / 2, 0], { bg: '#2F6FE0', fg: '#FFFFFF' });
+    const rwx = X(1800) - 0.01;
+    sign(R, [{ t: 'NO EXCUSES', size: 120, c: '#FFC93C' }], 3.2, 0.7, [rwx, 2.6, Z(190)], [0, -Math.PI / 2, 0], { bg: '#15171C' });
+    sign(up, [{ t: 'INTERNATIONAL', size: 70, c: '#FFFFFF' }, { t: 'CHEST DAY', size: 110, c: '#FFC93C' }, { t: 'every day', size: 50, c: '#F4F1EA', weight: '700' }], 1.6, 1.2, [X(0) + 0.01, ELEV + 2.0, Z(250)], [0, Math.PI / 2, 0], { bg: '#E2544B' });
     const winM = new T.MeshStandardMaterial({ color: '#BFE6F5', emissive: '#87C5DF', emissiveIntensity: 0.55, roughness: 0.2 });
-    [-7.5, -2, 3.5].forEach(z => { box(0.06, 1.0, 1.6, M.frame(), lw, [z, 2.3, 0.02], [0, Math.PI / 2, 0]); const w = box(0.04, 0.9, 1.5, winM, lw, [z, 2.3, 0.05], [0, Math.PI / 2, 0]); w.castShadow = false; });
-    // right wall: banner + TV
-    const rw = group(R, [W / 2 - 0.01, 0, 0], [0, -Math.PI / 2, 0]);
-    sign(rw, [{ t: 'NO EXCUSES', size: 120, c: '#FFC93C' }], 3.2, 0.7, [4, 2.6, 0], null, { bg: '#15171C' });
-    box(1.4, 0.82, 0.08, M.black(), rw, [-2.5, 2.3, 0.04]);
-    sign(rw, [{ t: 'GYM TV', size: 60, c: '#FFFFFF' }, { t: 'leg day highlights', size: 40, c: '#9BE89F', weight: '700' }], 1.3, 0.72, [-2.5, 2.3, 0.09], null, { bg: '#22324A' }, true);
-    // rubber zone mats + props
-    REST_PROPS(R, shared);
-    return R;
+    [150, 400, 650, 900].forEach(y => { const w = box(0.04, 1.2, 1.8, winM, R, [rwx - 0.02, 5.2, Z(y)]); w.castShadow = false; });
+    [700, 900].forEach(y => { const w = box(0.04, 1.2, 1.8, winM, R, [X(0) + 0.03, 5.2, Z(y)]); w.castShadow = false; });
+    box(0.08, 0.82, 1.4, M.black(), R, [rwx - 0.04, 2.3, Z(60) + 1.0]);
+    sign(R, [{ t: 'GYM TV', size: 60, c: '#FFFFFF' }, { t: 'leg day highlights', size: 40, c: '#9BE89F', weight: '700' }], 1.3, 0.72, [rwx - 0.09, 2.3, Z(60) + 1.0], [0, -Math.PI / 2, 0], { bg: '#22324A' }, true);
+    PROPS(R, up, sh);
+    return { R, up };
   }
-  function REST_PROPS(R, shared) {
-    // fountains at rest spots, stretch mat with rollers and a yoga ball
-    shared.REST.forEach(r => {
-      const [x, z] = toWorld(r.x, r.y);
+  function PROPS(R, up, sh) {
+    sh.REST.forEach(r => {
+      const [x, y3, z] = map3(r.x, r.y), par = r.x >= 1900 ? up : R;
       if (r.n === 'Stretch mat') {
-        const mat = box(r.r * 2 * SCALE * 1.0, 0.04, r.r * 1.4 * SCALE, std('#3F9E92', 0.9), R, [x, 0.02, z]); mat.castShadow = false;
+        const mat = box(r.r * 2 * SCALE, 0.04, r.r * 1.4 * SCALE, std('#3F9E92', 0.9), R, [x, 0.02, z]); mat.castShadow = false;
         [-0.5, 0.2].forEach((dx, i) => mesh(cylG(0.08, 0.08, 0.5, 12), std(i ? '#FF8A2B' : '#2F6FE0', 0.6), R, [x + dx, 0.12, z + 0.5], [0, 0, Math.PI / 2]));
         mesh(sphG(0.33, 16), std('#B07CFF', 0.4), R, [x + 1.1, 0.35, z - 0.3]);
         kettlebell(R, [x - 1.2, 0.04, z - 0.5], 1, '#E2544B'); kettlebell(R, [x - 0.9, 0.04, z - 0.55], 0.8);
-      } else cooler(R, [x + (x < 0 ? -0.5 : 0.5), 0, z]);
+      } else cooler(par, [x, y3, z]);
     });
-    shared.TREADS.forEach(t => { const [x, z] = toWorld(t.x + t.w / 2, t.y + t.h / 2); treadmill(R, [x, 0, z]); });
-    const [tx, tz] = toWorld(380, 676);
-    sign(R, [{ t: 'CARDIO', size: 120, c: '#FFFFFF' }, { t: '(nobody uses it)', size: 60, c: '#9AA0AB', weight: '700' }], 2.0, 0.55, [tx, 0.02, tz + 0.1], [-Math.PI / 2, 0, 0], { bg: '#2B2F38' });
-    const [dx, dz] = toWorld(shared.DESK.x + shared.DESK.w / 2, shared.DESK.y + shared.DESK.h / 2);
+    sh.TREADS.forEach(t => { const [x, y3, z] = map3(t.x + t.w / 2, t.y + t.h / 2); treadmill(up, [x, y3, z]); });
+    const [dx, , dz] = map3(sh.DESK.x + sh.DESK.w / 2, sh.DESK.y + sh.DESK.h / 2);
     desk(R, [dx, 0, dz]);
-    // plants, bins, towel basket, kettlebell row, medicine balls
-    [[-14.3, -8.6], [14.3, -8.6], [-14.3, 8.5]].forEach(([x, z]) => plant(R, [x, 0, z], 1.1));
-    const basket = group(R, [12.5, 0, 3.4]);
+    [[30, 80], [1770, 40], [1120, 1070], [670, 40]].forEach(([x, y], i) => { const [a, , b] = map3(x, y); plant(i === 3 ? up : R, [a, i === 3 ? ELEV : 0, b], 1.1); });
+    const [bx, , bz] = map3(1120, 940);
+    const basket = group(R, [bx, 0, bz]);
     mesh(cylG(0.32, 0.26, 0.55, 12), std('#C9A15A', 0.9), basket, [0, 0.275, 0]);
     for (let i = 0; i < 4; i++) box(0.3, 0.08, 0.22, std('#F4F1EA', 0.9), basket, [Math.sin(i) * 0.08, 0.58 + i * 0.03, Math.cos(i * 2) * 0.06], [0.2 * i, i, 0.1]);
-    sign(basket, [{ t: 'USED TOWELS', size: 70, c: '#15171C' }], 0.6, 0.14, [0, 0.35, 0.33], null, { bg: '#F4F1EA' });
-    for (let i = 0; i < 8; i++) kettlebell(R, [-14.4, 0, -6 + i * 0.5], 0.7 + i * 0.07, ['#2B2F38', '#E2544B', '#2F6FE0', '#FFC93C'][i % 4]);
-    const mb = group(R, [-14.4, 0, 4.5]);
-    box(0.4, 1.4, 1.2, M.frame(), mb, [0, 0.7, 0]);
-    [0.35, 0.8, 1.25].forEach((y, j) => [-0.35, 0, 0.35].forEach((z, i) => mesh(sphG(0.15, 10), std(['#2FBF71', '#E2544B', '#FFC93C'][(i + j) % 3], 0.6), mb, [0.12, y, z])));
-    // chalk bucket near the squat racks
-    const cb = group(R, [6.6, 0, -4.2]); mesh(cylG(0.18, 0.15, 0.3, 12), std('#F4F1EA', 0.6), cb, [0, 0.15, 0]); mesh(cylG(0.17, 0.17, 0.02, 12), std('#FFFFFF', 1), cb, [0, 0.29, 0]);
-    // bin
-    const bin = group(R, [-3.8, 0, 3.4]); mesh(cylG(0.2, 0.17, 0.6, 12), std('#2F8F8A', 0.6), bin, [0, 0.3, 0]);
-    // loose dumbbells on the floor (someone didn't rerack)
-    const d1 = dumbbell(0.7, '#9C6ADE', R); d1.position.set(-4.6, 0.1, -3.9); d1.rotation.y = 0.8;
-    const d2 = dumbbell(0.7, '#9C6ADE', R); d2.position.set(-4.1, 0.1, -3.7); d2.rotation.y = 2.2;
+    for (let i = 0; i < 7; i++) { const [a, , b] = map3(1120, 330 + i * 26); kettlebell(R, [a, 0, b], 0.7 + i * 0.07, ['#2B2F38', '#E2544B', '#2F6FE0', '#FFC93C'][i % 4]); }
+    const [mx, , mz] = map3(1775, 250);
+    const mb = group(R, [mx, 0, mz]); box(0.4, 1.4, 1.2, M.frame(), mb, [0, 0.7, 0]);
+    [0.35, 0.8, 1.25].forEach((y, j) => [-0.35, 0, 0.35].forEach((z, i) => mesh(sphG(0.15, 10), std(['#2FBF71', '#E2544B', '#FFC93C'][(i + j) % 3], 0.6), mb, [-0.12, y, z])));
+    const [cx3, , cz3] = map3(1345, 335); const cb = group(R, [cx3, 0, cz3]); mesh(cylG(0.18, 0.15, 0.3, 12), std('#F4F1EA', 0.6), cb, [0, 0.15, 0]); mesh(cylG(0.17, 0.17, 0.02, 12), std('#FFFFFF', 1), cb, [0, 0.29, 0]);
+    const [ix, , iz] = map3(700, 1070); const bin = group(R, [ix, 0, iz]); mesh(cylG(0.2, 0.17, 0.6, 12), std('#2F8F8A', 0.6), bin, [0, 0.3, 0]);
+    const [lx, , lz] = map3(560, 560);
+    const d1 = dumbbell(0.7, '#9C6ADE', R); d1.position.set(lx, 0.1, lz); d1.rotation.y = 0.8;
+    const d2 = dumbbell(0.7, '#9C6ADE', R); d2.position.set(lx + 0.5, 0.1, lz + 0.2); d2.rotation.y = 2.2;
   }
 
-  out.G3 = { T, SCALE, toWorld, M, std, mesh, box, group, span, tube, sq, pad, plate, barbell, dumbbell, textTex, sign, makeChar, POSE, buildMachine, buildRoom, SKINS, HAIRS, MB };
+  out.G3 = { T, SCALE, toWorld, M, std, mesh, box, group, span, tube, sq, pad, plate, barbell, dumbbell, textTex, sign, makeChar, POSE, buildMachine, buildRoom, map3, heightAt, ELEV, SKINS, HAIRS, MB };
 })(window);

@@ -22,13 +22,14 @@ button:focus-visible{outline:3px solid #8FB6FF;outline-offset:2px}
 </head>
 <body>
 <div id="load">Building the gym…</div>
-<div class="top"><b>Big Gaz's Gym · 3D preview</b>Drag to orbit, pinch or scroll to zoom. Every machine has someone repping on it.</div>
+<div class="top"><b>Big Gaz's Gym · 3D preview</b>Drag to orbit, pinch or scroll to zoom. Two floors: take the corridor to the leg room, or the stairs up to the chest floor.</div>
 <div class="ui">
 <button type="button" id="all" class="on">Whole gym</button>
+<button type="button" id="ground">Ground floor</button>
+<button type="button" id="upst">Upstairs</button>
 <button type="button" id="prev" aria-label="Previous machine">◀</button>
 <div id="name" aria-live="polite">Machine tour</div>
 <button type="button" id="next" aria-label="Next machine">▶</button>
-<button type="button" id="crew">The crew</button>
 <button type="button" id="pause">Pause reps</button>
 </div>
 
@@ -37,106 +38,108 @@ button:focus-visible{outline:3px solid #8FB6FF;outline-offset:2px}
 <script src="shared.js"></script>
 <script src="gym3d.js"></script>
 <script>
-const SH=window.SHARED,T=THREE;
+const SH=window.SHARED,T=THREE,V3=T.Vector3;
 const renderer=new T.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
 document.body.prepend(renderer.domElement);
-const scene=new T.Scene();scene.background=new T.Color('#1B1D22');scene.fog=new T.Fog('#1B1D22',40,75);
+const scene=new T.Scene();scene.background=new T.Color('#1B1D22');scene.fog=new T.Fog('#1B1D22',45,85);
 const camera=new T.PerspectiveCamera(40,innerWidth/innerHeight,0.1,200);
 const controls=new T.OrbitControls(camera,renderer.domElement);
-controls.enableDamping=true;controls.maxPolarAngle=1.42;controls.minDistance=2.5;controls.maxDistance=48;
+controls.enableDamping=true;controls.maxPolarAngle=1.42;controls.minDistance=2.5;controls.maxDistance=60;
 
 // lighting: warm and soft, one shadow-casting key light
 scene.add(new T.HemisphereLight('#FFF4E2','#3A3D46',0.72));
-const key=new T.DirectionalLight('#FFF1DC',0.85);key.position.set(-9,22,13);key.castShadow=true;
-key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-18,right:18,top:14,bottom:-14,near:1,far:60});key.shadow.bias=-0.0006;key.shadow.normalBias=0.02;
+const key=new T.DirectionalLight('#FFF1DC',0.85);key.position.set(-10,26,15);key.castShadow=true;
+key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-21,right:21,top:15,bottom:-15,near:1,far:70});key.shadow.bias=-0.0006;key.shadow.normalBias=0.02;
 scene.add(key);
-[[-9,3.2,-4],[0,3.2,-4],[9,3.2,-4],[-6,3.2,5],[6,3.2,5]].forEach(p=>{const l=new T.PointLight('#FFD9A8',0.28,14,2);l.position.set(...p);scene.add(l)});
+[[-11,3.2,4],[0,3.2,0],[8,3.2,-6],[7,3.2,6],[-11,6.6,-6]].forEach(p=>{const l=new T.PointLight('#FFD9A8',0.28,15,2);l.position.set(...p);scene.add(l)});
 
-G3.buildRoom(scene,SH);
+const {up}=G3.buildRoom(scene,SH);
 
 // machines with someone on each
 const crewCols=SH.COLOURS;const machines=[];
 SH.MACH.forEach((m,i)=>{
-  const b=G3.buildMachine(m,SH.GROUPS[m.g].c);scene.add(b.g);
+  const b=G3.buildMachine(m,SH.GROUPS[m.g].c);(m.x>=1900?up:scene).add(b.g);
   const c=G3.makeChar({col:crewCols[i%crewCols.length],skin:G3.SKINS[(i*3)%5],hair:G3.HAIRS[(i*5+1)%6]});
   b.g.add(c.group);c.setFat(15+((i*37)%80));
-  machines.push({b,c,def:m,off:i*0.37,period:1.6+(i%4)*0.18});
+  machines.push({b,c,def:m,off:i*0.37,period:1.6+(i%4)*0.18,upstairs:m.x>=1900});
 });
 
 // name tags
 function tag(text,col){const cv=document.createElement('canvas');cv.width=256;cv.height=64;const x=cv.getContext('2d');
 x.fillStyle='rgba(15,17,21,.85)';x.beginPath();x.roundRect?x.roundRect(4,8,248,48,14):x.rect(4,8,248,48);x.fill();x.fillStyle=col;x.font='800 30px Inter, system-ui, sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(text,128,33);
-const s=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(cv),depthTest:false}));s.scale.set(1.1,0.275,1);s.renderOrder=10;return s}
+const s=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(cv)}));s.scale.set(1.1,0.275,1);s.renderOrder=10;return s}
 
-// walking crew, staff and Big Gaz
+// walking routes (map coordinates, converted to 3D so the stairs get height)
+const path3=pts=>pts.map(p=>new V3(...G3.map3(p[0],p[1])));
 const crew=[
-  {n:'Nav',col:'#3C82FF',path:[[600,300],[1100,300],[1100,610],[600,610]],fat:96},
-  {n:'Jason',col:'#E2544B',path:[[1250,610],[200,610],[200,300],[1250,300]],fat:55},
-  {n:'Shaz',col:'#2FBF71',path:[[420,300],[420,610],[980,610],[980,300]],fat:20}
+  {n:'Nav',col:'#3C82FF',fat:96,path:[[300,1060],[1050,880],[1255,1000],[1255,430],[1480,260],[1255,430],[1255,1000],[1050,880]]},
+  {n:'Jason',col:'#E2544B',fat:55,path:[[300,1060],[100,1060],[100,620],[100,545],[2100,470],[2380,240],[2620,240],[2380,240],[2100,470],[100,545],[100,620],[100,1060]]},
+  {n:'Shaz',col:'#2FBF71',fat:20,path:[[490,350],[490,250],[890,250],[890,350],[680,780],[300,780]]}
 ].map((w,i)=>{const c=G3.makeChar({col:w.col,skin:G3.SKINS[(i*2+1)%5],hair:G3.HAIRS[i%6]});scene.add(c.group);c.setFat(w.fat);
   const t=tag(w.n,w.col);scene.add(t);
-  // fatigue ring on the floor
   const track=new T.Mesh(new T.RingGeometry(0.52,0.66,48),new T.MeshBasicMaterial({color:'#15171C',transparent:true,opacity:.55,depthWrite:false}));track.rotation.x=-Math.PI/2;scene.add(track);
-  const ringG=new T.RingGeometry(0.52,0.66,48,1,Math.PI/2,Math.PI*2);const ring=new T.Mesh(ringG,new T.MeshBasicMaterial({color:'#4CD964',transparent:true,depthWrite:false,side:T.DoubleSide}));ring.rotation.x=-Math.PI/2;scene.add(ring);
-  return Object.assign(w,{c,t,track,ring,d:0,pts:w.path.map(p=>G3.toWorld(p[0],p[1]))})});
+  const ring=new T.Mesh(new T.RingGeometry(0.52,0.66,48,1,Math.PI/2,Math.PI*2),new T.MeshBasicMaterial({color:'#4CD964',transparent:true,depthWrite:false,side:T.DoubleSide}));ring.rotation.x=-Math.PI/2;scene.add(ring);
+  return Object.assign(w,{c,t,track,ring,d:0,pts:path3(w.path)})});
 const staff=G3.makeChar({col:'#3DAE5A',skin:'#DDA877',hair:'#2B1D14'});scene.add(staff.group);
-const staffPts=SH.STAFF_PATH.map(p=>G3.toWorld(p[0],p[1]));const staffW={d:0};
-const staffTag=tag('Staff','#9BE89F');scene.add(staffTag);
-// whistle
+const staffW={d:0,pts:path3(SH.STAFF_PATH)};const staffTag=tag('Staff','#9BE89F');scene.add(staffTag);
 G3.mesh(new T.CylinderGeometry(0.03,0.03,0.08,8),G3.std('#C9D0DA',0.3,0.8),staff.group,[0.05,1.25,-0.15],[0,0,Math.PI/2]);
 const gaz=G3.makeChar({col:'#1A1A1A',skin:'#DDA877',hair:'#151515',shades:true,chain:true,scale:1.15});
-const [gx,gz]=G3.toWorld(SH.DESK.x+SH.DESK.w/2,SH.DESK.y+SH.DESK.h/2);gaz.group.position.set(gx+0.4,0,gz+0.62);scene.add(gaz.group);
+const gp=G3.map3(SH.DESK.x+SH.DESK.w/2+40,SH.DESK.y+SH.DESK.h+32);gaz.group.position.set(gp[0],0,gp[2]);scene.add(gaz.group);
 gaz.pose(G3.POSE.stand(0,0,{crossed:true}));
-const gazTag=tag('Big Gaz','#FF8A80');gazTag.position.set(gx+0.4,2.45,gz+0.62);scene.add(gazTag);
+const gazTag=tag('Big Gaz','#FF8A80');gazTag.position.set(gp[0],2.45,gp[2]);scene.add(gazTag);
 
-// steam puffs for anyone over 60% fatigue
+// steam and sweat
 const puffTex=(()=>{const cv=document.createElement('canvas');cv.width=cv.height=64;const x=cv.getContext('2d');const g=x.createRadialGradient(32,32,2,32,32,30);g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new T.CanvasTexture(cv)})();
 const puffs=[];
-function puff(p){const s=new T.Sprite(new T.SpriteMaterial({map:puffTex,transparent:true,depthWrite:false,opacity:.8}));s.position.copy(p);s.scale.setScalar(0.25);scene.add(s);puffs.push({s,life:1.2,v:new T.Vector3((Math.random()-.5)*.3,0.9,(Math.random()-.5)*.3)})}
+function puff(p){const s=new T.Sprite(new T.SpriteMaterial({map:puffTex,transparent:true,depthWrite:false,opacity:.8}));s.position.copy(p);s.scale.setScalar(0.25);scene.add(s);puffs.push({s,life:1.2,v:new V3((Math.random()-.5)*.3,0.9,(Math.random()-.5)*.3)})}
 const drops=[];const dropM=G3.std('#8FD3FF',0.2);
-function drop(p){const d=G3.mesh(new T.SphereGeometry(0.03,6,4),dropM,scene);d.position.copy(p);d.scale.set(1,1.4,1);drops.push({d,v:new T.Vector3((Math.random()-.5)*1.2,1.2,(Math.random()-.5)*1.2),life:0.8})}
+function drop(p){const d=G3.mesh(new T.SphereGeometry(0.03,6,4),dropM,scene);d.position.copy(p);d.scale.set(1,1.4,1);drops.push({d,v:new V3((Math.random()-.5)*1.2,1.2,(Math.random()-.5)*1.2),life:0.8})}
 
-// walking along a path
-function walk(w,dt,speed,char){const pts=w.pts||staffPts;let seg=0,acc=0;const lens=pts.map((p,i)=>{const q=pts[(i+1)%pts.length];return Math.hypot(q[0]-p[0],q[1]-p[1])});const tot=lens.reduce((a,b)=>a+b,0);
-w.d=(w.d+dt*speed)%tot;let d=w.d;while(d>lens[seg]){d-=lens[seg];seg++}const a=pts[seg],b=pts[(seg+1)%pts.length],f=d/lens[seg];
-const x=a[0]+(b[0]-a[0])*f,z=a[1]+(b[1]-a[1])*f,dx=b[0]-a[0],dz=b[1]-a[1];
-char.group.position.set(x,0,z);const want=Math.atan2(-dx,-dz);let cur=char.group.rotation.y,dd=want-cur;while(dd>Math.PI)dd-=Math.PI*2;while(dd<-Math.PI)dd+=Math.PI*2;char.group.rotation.y=cur+dd*Math.min(1,dt*8);
-w.ph=(w.ph||0)+dt*speed*4.2;char.pose(G3.POSE.stand(w.ph,1));return [x,z]}
+// walk along a looping 3D route
+function walk(w,dt,speed,char){const pts=w.pts;const lens=pts.map((p,i)=>p.distanceTo(pts[(i+1)%pts.length]));const tot=lens.reduce((a,b)=>a+b,0);
+w.d=(w.d+dt*speed)%tot;let d=w.d,seg=0;while(d>lens[seg]){d-=lens[seg];seg++}const a=pts[seg],b=pts[(seg+1)%pts.length],f=d/(lens[seg]||1);
+const pos=a.clone().lerp(b,f);char.group.position.copy(pos);const dx=b.x-a.x,dz=b.z-a.z;
+if(Math.hypot(dx,dz)>0.01){const want=Math.atan2(-dx,-dz);let cur=char.group.rotation.y,dd=want-cur;while(dd>Math.PI)dd-=Math.PI*2;while(dd<-Math.PI)dd+=Math.PI*2;char.group.rotation.y=cur+dd*Math.min(1,dt*8)}
+w.ph=(w.ph||0)+dt*speed*4.2;char.pose(G3.POSE.stand(w.ph,1));return pos}
 
-// camera moves
-const homePos=()=>innerWidth<innerHeight?new T.Vector3(0,34,25):new T.Vector3(0,20.5,17.5);
-const view={pos:homePos(),tgt:new T.Vector3(0,0,0.6)};let flying=0;
-function fly(pos,tgt){view.pos.copy(pos);view.tgt.copy(tgt);flying=1.2}
+// views
+const narrow=()=>innerWidth<innerHeight;
+const VIEWS={all:()=>[narrow()?new V3(0,40,30):new V3(0,25,21),new V3(0,1.2,0.4)],
+  ground:()=>[narrow()?new V3(0,36,27):new V3(0,22,19),new V3(0,0,0.6)],
+  upst:()=>{const c=G3.map3(2350,260);return [narrow()?new V3(c[0]+2,c[1]+17,c[2]+15):new V3(c[0]+3,c[1]+11,c[2]+10),new V3(c[0],c[1],c[2])]}};
+const view={pos:VIEWS.all()[0],tgt:VIEWS.all()[1]};let flying=0;
+function fly(p,t){view.pos.copy(p);view.tgt.copy(t);flying=1.4}
 camera.position.copy(view.pos);controls.target.copy(view.tgt);
 let idx=-1,paused=false;
-const btns={all:document.getElementById('all'),crew:document.getElementById('crew')};
+const btns={all:document.getElementById('all'),ground:document.getElementById('ground'),upst:document.getElementById('upst')};
 function setOn(b){Object.values(btns).forEach(x=>x.classList.toggle('on',x===b))}
-function showMachine(i){idx=(i+machines.length)%machines.length;const m=machines[idx];const p=m.b.g.position;
-document.getElementById('name').textContent=m.def.name;setOn(null);
-const narrow=innerWidth<innerHeight;fly(new T.Vector3(p.x+2.4,narrow?3.6:2.9,p.z+(narrow?5.2:4.2)),new T.Vector3(p.x,0.85,p.z))}
+function mode(k){setOn(btns[k]);up.visible=k!=='ground';document.getElementById('name').textContent='Machine tour';const [p,t]=VIEWS[k]();fly(p,t)}
+Object.keys(btns).forEach(k=>btns[k].onclick=()=>mode(k));
+function showMachine(i){idx=(i+machines.length)%machines.length;const m=machines[idx];const p=m.b.g.getWorldPosition(new V3());
+up.visible=m.upstairs||!(p.x<G3.map3(700,0)[0]+0.5&&p.z<G3.map3(0,520)[2]);document.getElementById('name').textContent=m.def.name+(m.upstairs?' · upstairs':'');setOn(null);
+fly(new V3(p.x+2.4,p.y+(narrow()?3.6:2.9),p.z+(narrow()?5.2:4.2)),new V3(p.x,p.y+0.85,p.z))}
 document.getElementById('next').onclick=()=>showMachine(idx+1);
 document.getElementById('prev').onclick=()=>showMachine(idx-1);
-btns.all.onclick=()=>{setOn(btns.all);document.getElementById('name').textContent='Machine tour';fly(homePos(),new T.Vector3(0,0,0.6))};
-btns.crew.onclick=()=>{setOn(btns.crew);document.getElementById('name').textContent='The crew';const p=crew[0].c.group.position;fly(new T.Vector3(p.x+2,2.6,p.z+3.4),p.clone().setY(1))};
 document.getElementById('pause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Resume reps':'Pause reps';e.target.classList.toggle('on',paused)};
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
 
-const clock=new T.Clock();let t=0;const tmp=new T.Vector3();
+const clock=new T.Clock();let t=0;const tmp=new V3();
 function frame(){requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),0.05);if(!paused)t+=dt;
 machines.forEach(m=>{const p=((t+m.off)%m.period)/m.period;const L=0.5-0.5*Math.cos(p*Math.PI*2);m.b.set(L,true);const P=m.b.pose(L);if(P)m.c.pose(P);m.c.setEffort(Math.max(0,L*1.2-0.2));});
-crew.forEach((w,i)=>{const [x,z]=walk(w,paused?0:dt,1.5,w.c);const head=w.c.parts.head.getWorldPosition(tmp);w.t.position.set(x,head.y+0.55,z);
-  w.track.position.set(x,0.04,z);w.ring.position.set(x,0.045,z);
-  const f=w.fat/100;w.ring.geometry.setDrawRange(0,Math.floor(f*48)*6);
+crew.forEach(w=>{const pos=walk(w,paused?0:dt,1.5,w.c);const hidden=!up.visible&&pos.y>3;[w.c.group,w.t,w.track,w.ring].forEach(o=>o.visible=!hidden);
+  const head=w.c.parts.head.getWorldPosition(tmp);w.t.position.set(pos.x,head.y+0.55,pos.z);
+  w.track.position.set(pos.x,pos.y+0.04,pos.z);w.ring.position.set(pos.x,pos.y+0.045,pos.z);
+  w.ring.geometry.setDrawRange(0,Math.floor(w.fat/100*48)*6);
   w.ring.material.color.set(w.fat>=80?'#FF4D3D':w.fat>=50?'#FF8A2B':'#4CD964');w.ring.material.opacity=w.fat>=90?.45+.55*Math.abs(Math.sin(t*9)):1;
-  if(w.fat>60&&Math.random()<dt*(w.fat-55)/45*6)puff(head.clone().add(new T.Vector3(0,0.2,0)));
-  if(w.fat>70&&Math.random()<dt*3)drop(head.clone());
+  if(!hidden&&w.fat>60&&Math.random()<dt*(w.fat-55)/45*6)puff(head.clone().add(new V3(0,0.2,0)));
+  if(!hidden&&w.fat>70&&Math.random()<dt*3)drop(head.clone());
   if(w.fat>=90)w.c.group.position.x+=Math.sin(t*55)*0.015;});
-const [sx,sz]=walk(staffW,paused?0:dt,1.1,staff);staffTag.position.set(sx,2.35,sz);
-machines.forEach(m=>{if(m.c.parts&&Math.random()<dt*0.6){const h=m.c.parts.head.getWorldPosition(tmp);if((m.off*100%80)>45)puff(h.clone().add(new T.Vector3(0,0.2,0)))}});
+const sp=walk(staffW,paused?0:dt,1.1,staff);staffTag.position.set(sp.x,2.35,sp.z);
+machines.forEach(m=>{if((!m.upstairs||up.visible)&&Math.random()<dt*0.6&&(m.off*100%80)>45){const h=m.c.parts.head.getWorldPosition(tmp);puff(h.clone().add(new V3(0,0.2,0)))}});
 for(let i=puffs.length-1;i>=0;i--){const p=puffs[i];p.life-=dt;p.s.position.addScaledVector(p.v,dt);p.s.scale.setScalar(0.25+(1.2-p.life)*0.5);p.s.material.opacity=Math.max(0,p.life/1.2*.7);if(p.life<=0){scene.remove(p.s);puffs.splice(i,1)}}
-for(let i=drops.length-1;i>=0;i--){const d=drops[i];d.life-=dt;d.v.y-=6*dt;d.d.position.addScaledVector(d.v,dt);if(d.life<=0||d.d.position.y<0.02){scene.remove(d.d);drops.splice(i,1)}}
+for(let i=drops.length-1;i>=0;i--){const d=drops[i];d.life-=dt;d.v.y-=6*dt;d.d.position.addScaledVector(d.v,dt);if(d.life<=0){scene.remove(d.d);drops.splice(i,1)}}
 if(flying>0){flying-=dt;const k=Math.min(1,dt*3.2);camera.position.lerp(view.pos,k);controls.target.lerp(view.tgt,k)}
 controls.update();renderer.render(scene,camera)}
 document.getElementById('load').remove();frame();
