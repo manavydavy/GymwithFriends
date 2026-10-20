@@ -15,6 +15,7 @@
     if (!window.THREE) await load('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
     if (!window.G3) await load('gym3d.js');
     if (!THREE.GLTFLoader) await load('GLTFLoader.js').catch(() => {});
+    if (!THREE.DRACOLoader) await load('DRACOLoader.js').catch(() => {});
     T = THREE; G = G3; SH = window.SHARED;
     renderer = new T.WebGLRenderer({ antialias: true });
     const phone = (() => { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } })();

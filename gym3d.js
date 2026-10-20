@@ -201,6 +201,7 @@
       box(0.1, 0.02, 0.06, std('#C9CED6', 0.6), shoe, [0, 0.05, -0.06]);
       return { th: limb(0.11, 0.085, skinM), sh: limb(0.125, 0.115, shortsM), kn: mesh(sphG(0.084, 8), skinM, root), shin: limb(0.08, 0.06, skinM), shoe };
     });
+    upgradeChar(root);
     const tmp = new T.Matrix4(), q = new T.Quaternion();
     let effort = 0, fat = 0;
     const api = {
@@ -266,6 +267,21 @@
       setColour(c) { shirtM.color.set(c); }
     };
     return api;
+  }
+  // Swap each body part's shape for the smoother Blender one (same size and frame; colours stay the game's own)
+  let CHARMAP = null;
+  function upgradeChar(root) {
+    const src = ASSETS.char;
+    if (!src || !CHARMAP) return;
+    root.traverse(o => {
+      if (!o.isMesh) return;
+      const n = CHARMAP[o.geometry.type + JSON.stringify(o.geometry.parameters)];
+      const node = n && src.getObjectByName(n);
+      let g = null; if (node) node.traverse(x => { if (!g && x.isMesh) g = x.geometry; });
+      if (!g) return;
+      o.geometry = g;
+      if (o.material.flatShading) { o.material.flatShading = false; o.material.needsUpdate = true; } // in place: setFat() recolours this material
+    });
   }
   // Ready-made poses
   const POSE = {
@@ -644,10 +660,18 @@
   // Blender material name -> game material [colour, roughness, metalness]. 'plate' takes the muscle-group colour.
   const GLB_MATS = { frame: ['#2B2F38', 0.55, 0.35], paint: ['#F07A3A', 0.45, 0.15], chrome: ['#E6EBF2', 0.18, 0.9], steel: ['#CBD2DC', 0.32, 0.75],
     steelDark: ['#5C6370', 0.45, 0.6], rubber: ['#1F2228', 0.95, 0], wood: ['#C88F55', 0.7, 0], black: ['#141518', 0.6, 0], white: ['#F4F1EA', 0.6, 0], plateRed: ['plate', 0.6, 0.05] };
-  function loadAssets() {
-    if (!T.GLTFLoader) return Promise.resolve();
+  let MANIFEST = {};
+  const glbOff = () => typeof location !== 'undefined' && /[?&]glb=off/.test(location.search);
+  async function loadAssets() {
+    if (!T.GLTFLoader || glbOff()) return;
     const loader = new T.GLTFLoader();
-    return Promise.all(Object.entries(GLB).map(([k, url]) => new Promise(res => loader.load(url, gl => {
+    if (T.DRACOLoader) { const d = new T.DRACOLoader(); d.setDecoderPath('draco/'); d.setDecoderConfig({ type: 'wasm' }); loader.setDRACOLoader(d); }
+    // machines rebuilt in Blender: models/machines.json says which ones exist and how their parts map onto the built-in rig
+    try { const r = await fetch('models/machines.json'); if (r.ok) MANIFEST = await r.json(); } catch (e) { MANIFEST = {}; }
+    try { const r = await fetch('models/char.json'); if (r.ok) { const c = await r.json(); if (c.glb) { CHARMAP = c.sigs; GLB.char = 'models/char_parts.glb'; } } } catch (e) { CHARMAP = null; }
+    const list = Object.assign({}, GLB);
+    Object.keys(MANIFEST).forEach(t => { if (MANIFEST[t].glb) list['m_' + t] = 'models/m_' + t + '.glb'; });
+    return Promise.all(Object.entries(list).map(([k, url]) => new Promise(res => loader.load(url, gl => {
       gl.scene.traverse(o => {
         if (!o.isMesh) return;
         // baked ambient occlusion lives in the vertex colours; soften it and drop the alpha channel
@@ -668,13 +692,14 @@
     const s = ASSETS[key].clone(true);
     s.traverse(o => {
       if (!o.isMesh) return;
-      const swap = mt => { const k = (mt.name || '').replace(/^GC_/, ''); const d = GLB_MATS[k] || ['#888888', 0.7, 0];
+      const swap = mt => { const n = mt.name || '', g = n.match(/^GCM_(\w+?)_([\d.]+)_([\d.]+)$/);
+        const d = g ? [g[1] === 'gc' ? 'plate' : '#' + g[1], +g[2], +g[3]] : GLB_MATS[n.replace(/^GC_/, '')] || ['#888888', 0.7, 0];
         return std(d[0] === 'plate' ? gc : d[0], d[1], d[2], { flatShading: false, vertexColors: !!o.geometry.getAttribute('color') }); };
       o.material = Array.isArray(o.material) ? o.material.map(swap) : swap(o.material);
     });
     return s;
   }
-  // Squat rack from Blender. Same rep animation as MB.squat, just a nicer model.
+  // Squat rack from Blender (hand-built). Same rep animation as MB.squat, just a nicer model.
   MB.squatGLB = function (gc) {
     const g = new T.Group();
     footprint(g, 1.7, 1.7);
@@ -694,14 +719,24 @@
     return { g, set, pose: () => P };
   };
   // While we compare: only Squat rack 1 uses the Blender model (?glb=all for both, ?glb=off for neither).
-  function glbFor(m) {
-    const q = (typeof location !== 'undefined' && (location.search.match(/[?&]glb=(\w+)/) || [])[1]) || '';
-    if (q === 'off' || !ASSETS.squat || TYPE[m.name] !== 'squat') return null;
-    return (q === 'all' || m.name === 'Squat rack 1') ? 'squatGLB' : null;
+  const glbFor = m => (TYPE[m.name] === 'squat' && ASSETS.squat ? 'squatGLB' : null);
+  // Swap a built-in machine's shapes for the Blender ones. The built-in moving parts (groups) stay,
+  // so set()/pose() keep animating exactly as before; the Blender pieces just ride along inside them.
+  function glbSwap(b, type, gc) {
+    const man = MANIFEST[type], src = ASSETS['m_' + type];
+    if (!man || !src) return;
+    const all = []; b.g.traverse(o => all.push(o));
+    if (all.length !== man.count) { console.warn('Model out of date for', type, '- using the built-in one'); return; }
+    const inst = glbInstance('m_' + type, gc);
+    const parts = man.owners.map(k => [k, inst.getObjectByName(k === 'root' ? 'static' : 'o' + k)]);
+    if (parts.some(p => !p[1])) return;
+    man.removed.forEach(i => { const o = all[i]; if (o.parent) o.parent.remove(o); });
+    parts.forEach(([k, node]) => { node.position.set(0, 0, 0); node.quaternion.identity(); node.scale.set(1, 1, 1); (k === 'root' ? b.g : all[+k]).add(node); });
   }
 
   function buildMachine(m, groupColour) {
     const b = MB[glbFor(m) || TYPE[m.name]](groupColour);
+    if (!glbFor(m)) glbSwap(b, TYPE[m.name], groupColour);
     const [x, z] = toWorld(m.x + m.w / 2, m.y + m.h / 2);
     b.g.position.set(x, m.x >= 1900 ? 3.6 : 0, z);
     b.def = m;
