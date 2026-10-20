@@ -31,6 +31,8 @@
     staffSpeed: 80,
     staffScan: 2.6,        // seconds staff spend looking around at each lookout point
     playerSpeed: 185,
+    sprintMult: 1.6,       // hold Shift: this much faster...
+    sprintFatigue: 20,     // ...but fatigue climbs this much per second (no recovery). Hit 100 and you're gassed
     limpTime: 25,
     programBonus: 300,
     firstBonus: 150,

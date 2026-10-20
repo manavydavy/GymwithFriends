@@ -4,7 +4,26 @@
   let T, G, SH, renderer, scene, camera, up, glcv, hemi, key;
   let machines = [], chars = {}, rings = {}, staff, gaz, W = 800, H = 500;
   const camPos = { x: 0, y: 12, z: 10 }, camTgt = { x: 0, y: 1, z: 0 };
-  let upVisible = true, first = true, restMats = [], cone = null;
+  let upVisible = true, first = true, restMats = [], cone = null, puffTex = null;
+  const puffs = [], pool = [];
+  function puff(pos, vel, o) {
+    let s = pool.pop();
+    if (!s) { s = new T.Sprite(new T.SpriteMaterial({ map: puffTex, transparent: true, depthWrite: false })); s.renderOrder = 5; }
+    s.material.color.set(o.col); s.position.copy(pos); s.visible = true; scene.add(s);
+    puffs.push({ s, v: vel, life: o.life, max: o.life, a: o.a, r0: o.r0, r1: o.r1, drag: o.drag || 0, rise: o.rise || 0 });
+  }
+  function stepPuffs(dt) {
+    for (let i = puffs.length - 1; i >= 0; i--) {
+      const p = puffs[i]; p.life -= dt;
+      if (p.life <= 0) { scene.remove(p.s); pool.push(p.s); puffs.splice(i, 1); continue; }
+      const t = 1 - p.life / p.max;
+      p.v.multiplyScalar(Math.pow(p.drag || 1, dt)); p.v.y += p.rise * dt;
+      p.s.position.addScaledVector(p.v, dt);
+      p.s.scale.setScalar(p.r0 + (p.r1 - p.r0) * t);
+      p.s.material.opacity = p.a * (1 - t) * Math.min(1, t * 6);
+    }
+  }
+  const V = () => new T.Vector3();
 
   function load(src) {
     return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); });
@@ -58,6 +77,12 @@
     gaz = G.makeChar({ col: '#1A1A1A', skin: '#DDA877', hair: '#151515', shades: true, chain: true, scale: 1.15 });
     const gp = G.map3(SH.DESK.x + SH.DESK.w / 2 + 40, SH.DESK.y + SH.DESK.h + 32); gaz.group.position.set(gp[0], 0, gp[2]); scene.add(gaz.group);
     gaz.pose(G.POSE.stand(0, 0, { crossed: true }));
+    // puff sprites: steam out of the ears when fatigue is maxed, dust when sprinting
+    const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+    const gx = cv.getContext('2d'), gr = gx.createRadialGradient(32, 32, 2, 32, 32, 30);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    gx.fillStyle = gr; gx.fillRect(0, 0, 64, 64);
+    puffTex = new T.CanvasTexture(cv);
     out.V3D.ready = true;
     resize(W, H);
   }
@@ -141,6 +166,23 @@
       r.ring.material.opacity = p.ft >= 90 ? 0.45 + 0.55 * Math.abs(Math.sin(TT * 9)) : 1;
     });
     Object.keys(chars).forEach(id => { if (!seen.has(+id)) dropChar(+id); });
+    // steam from the ears at max fatigue, dust from sprinting feet
+    const dt = Math.min(0.05, ctx.dt || 0.016);
+    S.p.forEach(p => {
+      const c = chars[p.id]; if (!c || !c.group.visible) return;
+      const spr = p.id === myId ? ME.spr : p.sp;
+      if (p.ft >= 95) for (let n = Math.floor(dt * 40 + Math.random()); n > 0; n--) {
+        c.group.updateMatrixWorld(true);
+        const head = c.parts.head, k = Math.random() < 0.5 ? -1 : 1;
+        const ear = head.localToWorld(V().set(k * 0.24, -0.01, 0)), side = head.localToWorld(V().set(k, 0, 0)).sub(head.localToWorld(V())).normalize();
+        puff(ear, side.multiplyScalar(0.9 + Math.random() * 0.5).add(V().set(0, 0.45, 0)), { col: '#F2F6FA', life: 1.1, a: 1, r0: 0.12, r1: 0.6, drag: 0.2, rise: 0.8 });
+      }
+      if (spr && p.on === null && Math.random() < dt * 22) {
+        const g = c.group.position;
+        puff(V().set(g.x + (Math.random() - 0.5) * 0.3, g.y + 0.08, g.z + (Math.random() - 0.5) * 0.3), V().set((Math.random() - 0.5) * 0.4, 0.35, (Math.random() - 0.5) * 0.4), { col: '#B8AD9C', life: 0.55, a: 0.55, r0: 0.12, r1: 0.4, drag: 0.3 });
+      }
+    });
+    stepPuffs(dt);
     // staff patrol
     if (S.sf) { const a = an('staff'), [x, y, z] = G.map3(S.sf[0], S.sf[1]), d = S.sf[2] || 0; staff.group.position.set(x, y, z); staff.group.rotation.y = -(d + Math.PI / 2); staff.pose(G.POSE.stand(a.ph, Math.min(1, a.spd)));
       const vis = S.sf[0] < 1900 || upVisible; staff.group.visible = vis; cone.visible = vis; cone.position.set(x, y, z); cone.rotation.y = -d; }

@@ -72,6 +72,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-o
 #bWipe{right:calc(196px + env(safe-area-inset-right,0px));bottom:calc(26px + env(safe-area-inset-bottom,0px));width:58px;height:58px;font-size:13px;background:rgba(40,90,120,.8)}
 #bOff{right:calc(108px + env(safe-area-inset-right,0px));bottom:calc(102px + env(safe-area-inset-bottom,0px));width:58px;height:58px;font-size:12px}
 #bYep{right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(200px + env(safe-area-inset-bottom,0px));height:56px;padding:0 20px;border-radius:28px;background:#2F6FE0;font-size:16px;box-shadow:0 4px 0 #1C4A9E;animation:yep .55s infinite alternate}
+#bSprint{right:calc(108px + env(safe-area-inset-right,0px));bottom:calc(102px + env(safe-area-inset-bottom,0px));width:62px;height:62px;font-size:13px;background:rgba(150,40,30,.8)}
+#bSprint.on{background:#E2544B;box-shadow:inset 0 0 0 3px #fff}
 #bChat{top:8px;right:8px;width:48px;height:40px;font-size:13px;border-radius:10px}
 #emotes{position:absolute;top:54px;right:8px;display:flex;flex-direction:column;gap:6px;pointer-events:auto;z-index:2}
 #emotes[hidden]{display:none}
@@ -100,11 +102,12 @@ html.touch .stage{border-radius:0;border:0}
 <button type="button" class="tb" id="bOff" data-a="use" hidden>Step off</button>
 <button type="button" class="tb" id="bTowel" data-a="towel">Towel</button>
 <button type="button" class="tb" id="bWipe" data-a="wipe">Wipe</button>
+<button type="button" class="tb" id="bSprint" aria-label="Hold to sprint">Sprint<small>hold</small></button>
 <button type="button" class="tb" id="bMain" data-a="main">Hop on</button>
 </div>
 <div class="overlay" id="ov"><div class="card" id="ovCard"></div></div>
 </div>
-<p class="keys">Keyboard: <kbd>WASD</kbd> or arrows move, <kbd>Space</kbd> rep, <kbd>E</kbd> use or step off, <kbd>Q</kbd> throw towel, <kbd>C</kbd> wipe down, <kbd>F</kbd> shove, <kbd>R</kbd> "Yep, using it", <kbd>1</kbd>–<kbd>4</kbd> quick chat.</p>
+<p class="keys">Keyboard: <kbd>WASD</kbd> or arrows move, <kbd>Space</kbd> rep, <kbd>E</kbd> use or step off, <kbd>Q</kbd> throw towel, <kbd>C</kbd> wipe down, <kbd>F</kbd> shove, hold <kbd>Shift</kbd> to sprint (burns fatigue fast), <kbd>R</kbd> "Yep, using it", <kbd>1</kbd>–<kbd>4</kbd> quick chat.</p>
 </main>
 
 <script src="shared.js"></script>
@@ -137,8 +140,8 @@ const KB=k=>TOUCH?'':' ('+k+')';
 let ws=null,myId=null,S=null,joined=false;
 const disp={};
 const ME={x:1300,y:650,phase:0,zc:.5,cd:0,on:null,tp:-1,lastSend:0,sx:0,sy:0};
-let pops=[],parts=[],banner=null,hintMsg=null,seen={},cardKey='';
-const K=new Set(),JV={x:0,y:0};
+let pops=[],parts=[],steam=[],dust=[],banner=null,hintMsg=null,seen={},cardKey='';
+const K=new Set(),JV={x:0,y:0},SPR={key:false,touch:false};
 const me=()=>S&&S.p.find(p=>p.id===myId);
 const byId=id=>S&&S.p.find(p=>p.id===id);
 function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
@@ -266,6 +269,8 @@ $('emotes').querySelectorAll('button').forEach(b=>b.addEventListener('pointerdow
 // ---------- local simulation ----------
 function update(dt){TT+=dt;
 parts.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.a-=dt*1.2});parts=parts.filter(p=>p.a>0);
+steam.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.15,dt);p.vy-=20*dt;p.a-=dt*1.1;p.r+=dt*16});steam=steam.filter(p=>p.a>0);
+dust.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.a-=dt*2.2});dust=dust.filter(p=>p.a>0);
 pops.forEach(p=>{p.y-=24*dt;p.a-=dt});pops=pops.filter(p=>p.a>0);
 if(banner){banner.time-=dt;if(banner.time<=0)banner=null}
 if(hintMsg){hintMsg.time-=dt;if(hintMsg.time<=0)hintMsg=null}
@@ -276,19 +281,25 @@ for(const p of S.p){const pos=p.id===myId?ME:disp[p.id];if(pos)animate(p.id,pos.
 if(S.sf)animate('staff',S.sf[0],S.sf[1],dt,false);
 for(const p of S.p){if(p.ft<60)continue;const pos=p.on!==null?{x:MACH[p.on].x+MACH[p.on].w/2,y:MACH[p.on].y+MACH[p.on].h/2}:(p.id===myId?ME:disp[p.id]);if(!pos)continue;
 if(Math.random()<dt*(p.ft-55)/45*9)parts.push({x:pos.x+rnd(-9,9),y:pos.y-12,vx:rnd(-10,10),vy:rnd(-45,-28),a:1})}
+// steam out of the ears when fatigue is maxed, dust kicked up when sprinting
+for(const p of S.p){const pos=p.on!==null?{x:MACH[p.on].x+MACH[p.on].w/2,y:MACH[p.on].y+MACH[p.on].h/2}:(p.id===myId?ME:disp[p.id]);if(!pos)continue;
+if(p.ft>=95)for(let n=Math.floor(dt*40+Math.random());n>0;n--){const k=Math.random()<.5?-1:1;steam.push({x:pos.x+k*12,y:pos.y-6,vx:k*rnd(45,75),vy:rnd(-35,-15),a:1,r:rnd(4,6)})}
+const spr=p.id===myId?ME.spr:p.sp;if(spr&&p.on===null&&Math.random()<dt*26)dust.push({x:pos.x+rnd(-6,6),y:pos.y+8,vx:rnd(-15,15),vy:rnd(-8,4),a:.9})}
 const m=me();if(!m)return;
 ME.cd=Math.max(0,ME.cd-dt);
+ME.spr=false;
 if(m.lk){const k=Math.min(1,dt*15);ME.x+=(m.x-ME.x)*k;ME.y+=(m.y-ME.y)*k}
 else if(S.st==='playing'){let vx=(K.has('right')?1:0)-(K.has('left')?1:0)+JV.x,vy=(K.has('down')?1:0)-(K.has('up')?1:0)+JV.y;const l=Math.hypot(vx,vy);
-if(l>1){vx/=l;vy/=l}const sp=C.playerSpeed*(m.lm?.55:1);if(l){ME.x+=vx*sp*dt;ME.y+=vy*sp*dt}SH.collide(ME);
+if(l>1){vx/=l;vy/=l}ME.spr=(SPR.key||SPR.touch)&&l>.2&&!m.lm&&m.ft<100;const sp=C.playerSpeed*(m.lm?.55:1)*(ME.spr?C.sprintMult:1);if(l){ME.x+=vx*sp*dt;ME.y+=vy*sp*dt}SH.collide(ME);
 ME.stairT=Math.max(0,(ME.stairT||0)-dt);{const st=ME.stairT<=0&&SH.stairAt(ME.x,ME.y);if(st){ME.x=st.to[0];ME.y=st.to[1];ME.stairT=.8;banner={t:st.floor?'Upstairs: chest floor':'Ground floor',c:'#BFE8FF',time:1.6}}}
-const now=performance.now();if(now-ME.lastSend>50&&(Math.abs(ME.x-ME.sx)>.3||Math.abs(ME.y-ME.sy)>.3)){send({t:'pos',x:Math.round(ME.x*10)/10,y:Math.round(ME.y*10)/10});ME.lastSend=now;ME.sx=ME.x;ME.sy=ME.y}}
+const now=performance.now();if(now-ME.lastSend>50&&(Math.abs(ME.x-ME.sx)>.3||Math.abs(ME.y-ME.sy)>.3)){send({t:'pos',x:Math.round(ME.x*10)/10,y:Math.round(ME.y*10)/10,s:ME.spr?1:0});ME.lastSend=now;ME.sx=ME.x;ME.sy=ME.y}}
 if(m.on!==null)ME.phase+=dt*C.markerSpeed*MACH[m.on].spd;
 const resting=m.on===null&&inRest(ME.x,ME.y);
 if(m.on===null&&m.ft>1&&Math.random()<dt*(resting?20:5))parts.push({x:ME.x+rnd(-8,8),y:ME.y-10,vx:rnd(-8,8),vy:rnd(-40,-25),a:1});
 if(S.st==='playing'){
-if(m.on===null&&!ME.hinted){ME.hinted=1;hint('start',(TOUCH?'Drag anywhere on the left to move. ':'')+'Glowing machines train today\'s program. Most gains at closing wins.')}
+if(m.on===null&&!ME.hinted){ME.hinted=1;hint('start',(TOUCH?'Drag anywhere on the left to move, hold Sprint to run. ':'Hold Shift to sprint. ')+'Glowing machines train today\'s program. Most gains at closing wins.')}
 if(m.ft>=60&&m.on!==null)hint('towel','You\'re filling up. Throw your towel'+KB('Q')+' on your next machine, or wipe down'+KB('C')+' to clear fatigue now. Wiping puts your towel on cooldown.');
+if(ME.spr&&m.ft>70)hint('sprint','Sprinting burns fatigue fast. Max it out and you\'re gassed on the spot.');
 if(m.on===null&&m.ft>45&&!resting)hint('rest','Rest at a fountain or the stretch mat to cool off fast.');
 if(m.hz>=50)hint('heat','Hog heat rising. Sitting idle on machines or leaving your towel unattended gets you a strike.');}}
 
@@ -356,6 +367,7 @@ const f=Math.max(0,st[2]/C.claimDuration);cx.strokeStyle=owner.c;cx.lineWidth=4;
 {const d=S.sf[2]||0,R=C.staffSight,h=C.staffFov*Math.PI/360;cx.fillStyle='rgba(255,213,74,.17)';cx.beginPath();cx.moveTo(S.sf[0],S.sf[1]);cx.arc(S.sf[0],S.sf[1],R,d-h,d+h);cx.closePath();cx.fill();cx.strokeStyle='rgba(255,213,74,.55)';cx.lineWidth=2;cx.stroke()}cx.lineWidth=1.5;cx.stroke();
 {const a=an('staff');GM.walker(S.sf[0],S.sf[1],(S.sf[2]||0)+Math.PI/2,{col:'#3DAE5A',fat:0,skin:'#DDA877',hair:'#2B1D14',band:'#ffffff'},a.ph,a.spd)}wl('Staff',S.sf[0],S.sf[1]-27,'#9BE89F',11,true);
 parts.forEach(p=>{cx.fillStyle='rgba(235,245,255,'+Math.max(0,p.a*.55)+')';cx.beginPath();cx.arc(p.x,p.y,4+(1-p.a)*5,0,7);cx.fill()});
+if(!(VIEW3D&&window.V3D&&V3D.ready)){dust.forEach(p=>{cx.fillStyle='rgba(190,180,165,'+Math.max(0,p.a*.5)+')';cx.beginPath();cx.arc(p.x,p.y,3+(1-p.a)*5,0,7);cx.fill()});}
 // players: others first, you on top
 const list=S.p.slice().sort((a,b)=>(a.id===myId)-(b.id===myId));
 list.forEach(p=>{const mine=p.id===myId;const pos=mine?ME:disp[p.id];if(!pos)return;
@@ -370,6 +382,8 @@ const tag=p.em?'"'+p.em+'"':p.lo?'Staff lecture':p.st?'Ouch':'';
 wl(mine?'You':p.n,pos.x,ny,mine?'#fff':p.c,10,true);
 if(tag)wl(tag,pos.x,ty,p.em?'#FFE29A':'#ffb070',12,true);
 else if(p.lm&&p.on===null)wl('Limping',pos.x,ty,'#ffb070',11,true)});
+// steam from the ears, drawn over the players
+steam.forEach(p=>{const a=Math.max(0,p.a);cx.fillStyle='rgba(255,255,255,'+a*.95+')';cx.strokeStyle='rgba(120,135,150,'+a*.6+')';cx.lineWidth=1.2;cx.beginPath();cx.arc(p.x,p.y,p.r,0,7);cx.fill();cx.stroke()});
 // asks in progress
 S.ak.forEach(q=>{const a=q.by===myId?ME:disp[q.by];if(!a)return;const f=q.t/C.askTime;cx.strokeStyle='#FFC93C';cx.lineWidth=3;cx.beginPath();cx.arc(a.x,a.y,21,-Math.PI/2,-Math.PI/2+f*Math.PI*2);cx.stroke()});
 pops.forEach(p=>{cx.globalAlpha=Math.max(0,Math.min(1,p.a));wl(p.t,p.x,p.y,p.c,13,true);cx.globalAlpha=1});
@@ -469,7 +483,7 @@ pops.forEach(p=>{cx.globalAlpha=Math.max(0,Math.min(1,p.a));const s=P(p.x,p.y,1.
 if(S.st==='playing'&&S.tm<30){cx.fillStyle='rgba(5,6,10,'+((30-S.tm)/30*.3)+')';cx.fillRect(0,0,VW,VH)}}
 function draw(){const m=me();
 if(VIEW3D&&window.V3D&&V3D.ready){cx.setTransform(DPR,0,0,DPR,0,0);cx.clearRect(0,0,VW,VH);if(!S)return;
-V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT});drawLabels3D(m);}else{
+V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT,dt:DT});drawLabels3D(m);}else{
 const vw=VW/Z,vh=VH/Z,fl=SH.FLOORS[SH.floorOf(ME.x)];cam.x=fl.w<=vw?fl.x+(fl.w-vw)/2:Math.max(fl.x,Math.min(fl.x+fl.w-vw,ME.x-vw/2));const padB=TOUCH?vh*0.32:40;cam.y=fl.h+padB<=vh?fl.y+(fl.h-vh)/2:Math.max(-40,Math.min(fl.y+fl.h-vh+padB,ME.y-vh/2));
 cx.setTransform(DPR,0,0,DPR,0,0);cx.fillStyle='#2B303A';cx.fillRect(0,0,VW,VH);
 if(!S)return;
@@ -485,7 +499,7 @@ const TB={main:$('bMain'),off:$('bOff'),towel:$('bTowel'),wipe:$('bWipe'),shove:
 function setBtn(k,html,dim,hide){const c=tbCache[k]||(tbCache[k]={});const b=TB[k];if(c.h!==html){b.innerHTML=html;c.h=html}if(c.d!==dim){b.classList.toggle('dim',!!dim);c.d=dim}if(c.x!==hide){b.hidden=!!hide;c.x=hide}}
 function syncButtons(){if(!TOUCH)return;const m=me();const live=!!(m&&S.st==='playing');
 ['main','off','towel','wipe','shove','yep'].forEach(k=>{if(!live)setBtn(k,tbCache[k]&&tbCache[k].h||'',true,true)});
-$('bChat').hidden=!live;if(!live){$('emotes').hidden=true;return}
+$('bChat').hidden=!live;$('bSprint').hidden=!live||!(m&&m.on===null);if($('bSprint').hidden)SPR.touch=false;if(!live){$('emotes').hidden=true;return}
 const busy=m.lk&&m.on===null;
 if(m.on!==null)setBtn('main','Rep',!!(m.lo||m.st),false);
 else{const i=busy?-1:nearMachine(52);let t='Hop on',d=true;if(i>=0){const st=S.m[i],gi=GK.indexOf(MACH[i].g);if(st[0]!==null)t='Taken';else if(st[1]!==null&&st[1]!==myId){t='Ask<small>"Using this?"</small>';d=!!m.ac}else if(m.pl[gi])t='Pulled';else{t='Hop on<small>'+MACH[i].name+'</small>';d=false}}setBtn('main',t,d,false)}
@@ -498,7 +512,8 @@ setBtn('shove',m.sc>0?'Shove<small>'+m.sc+'s</small>':'Shove',!near||m.sc>0,m.on
 setBtn('yep','Yep, using it',false,!S.ak.some(q=>q.ow===myId))}
 
 let last=performance.now();
-function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;update(dt);draw();syncButtons();requestAnimationFrame(frame)}
+let DT=.016;
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;DT=dt;update(dt);draw();syncButtons();requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
 showJoin();
 
@@ -510,8 +525,9 @@ if(TOUCH&&(KEYMAP[e.code]||ACTMAP[e.code]))setTouch(false);
 if(KEYMAP[e.code]){K.add(KEYMAP[e.code]);if(S&&S.st==='playing')e.preventDefault()}
 else if(ACTMAP[e.code]){if(tag==='BUTTON'&&!$('ov').hidden)return;e.preventDefault();if(!e.repeat)act(ACTMAP[e.code])}
 else if(/^Digit[1-4]$/.test(e.code)&&!e.repeat)emote(+e.code.slice(5)-1)});
-addEventListener('keyup',e=>{if(KEYMAP[e.code])K.delete(KEYMAP[e.code])});
-addEventListener('blur',()=>K.clear());
+addEventListener('keydown',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')SPR.key=true});
+addEventListener('keyup',e=>{if(KEYMAP[e.code])K.delete(KEYMAP[e.code]);if(e.code==='ShiftLeft'||e.code==='ShiftRight')SPR.key=false});
+addEventListener('blur',()=>{K.clear();SPR.key=false;SPR.touch=false});
 
 // ---------- touch buttons + floating joystick ----------
 document.querySelectorAll('.tb[data-a]').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();b.classList.add('down');act(b.dataset.a)});['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>b.classList.remove('down')));b.addEventListener('contextmenu',e=>e.preventDefault())});
@@ -525,6 +541,8 @@ const r=stage.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top;joy
 zone.addEventListener('pointermove',e=>{if(e.pointerId===id)move(e)});
 ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>zone.addEventListener(ev,e=>{if(e.pointerId===id){id=null;home()}}));
 home()})();
+(function(){const b=$('bSprint');const on=e=>{e.preventDefault();SPR.touch=true;b.classList.add('on')},off=()=>{SPR.touch=false;b.classList.remove('on')};
+b.addEventListener('pointerdown',on);['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,off));b.addEventListener('contextmenu',e=>e.preventDefault())})();
 document.addEventListener('gesturestart',e=>e.preventDefault());
 </script>
 </body>

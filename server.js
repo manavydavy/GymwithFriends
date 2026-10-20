@@ -70,7 +70,7 @@ function freshStats() { return { shoves: 0, shoved: 0, steals: 0, perfects: 0, r
 function resetPlayer(p, i) {
   Object.assign(p, {
     x: S.SPAWN(i)[0], y: S.SPAWN(i)[1], on: null, stairCd: 0, posIgnore: 0, fat: 0, combo: 0, miss: 0, stun: 0, kvx: 0, kvy: 0,
-    shoveCd: 0, askCd: 0, towelCd: 0, limp: 0, idle: 0, heat: 0, strikes: 0, gains: 0, claim: null, lock: 0,
+    shoveCd: 0, askCd: 0, towelCd: 0, limp: 0, sprintT: 0, moveT: 0, sprinting: false, idle: 0, heat: 0, strikes: 0, gains: 0, claim: null, lock: 0,
     lastRep: 0, lastPos: Date.now(), done: false, em: '', emT: 0, emCd: 0,
     grp: Object.fromEntries(S.GK.map(k => [k, { p: 0, pulled: false }])),
     stats: freshStats(), bt: {}
@@ -300,13 +300,15 @@ function movePlayer(r, p, x, y) {
     return;
   }
   // Trust the browser's movement, but not faster than walking speed.
-  const max = C.playerSpeed * (p.limp > 0 ? 0.55 : 1) * dt * 1.5 + 12;
+  const max = C.playerSpeed * (canSprint(p) && p.sprintT > 0 ? C.sprintMult : 1) * (p.limp > 0 ? 0.55 : 1) * dt * 1.5 + 12;
   let dx = x - p.x, dy = y - p.y;
   const d = Math.hypot(dx, dy);
   if (d > max) { dx = dx / d * max; dy = dy / d * max; if (d > max + 60) p.tp++; }
+  if (d > 1) p.moveT = 0.25;
   p.x += dx; p.y += dy;
   S.collide(p);
 }
+const canSprint = p => p.on === null && p.limp <= 0 && p.fat < 100 && p.stun <= 0 && p.lock <= 0;
 
 function emote(r, p, e) {
   const s = S.EMOTES[e | 0];
@@ -371,7 +373,9 @@ function botThink(r, p, dt) {
     const [tx, ty] = b.path[0];
     const d = dist(p.x, p.y, tx, ty);
     if (d < 6) { b.path.shift(); return; }
-    const sp = C.playerSpeed * 0.9 * (p.limp > 0 ? 0.55 : 1) * dt;
+    // bots sprint on long trips while they're fresh
+    if (b.path.length >= 3 && p.fat < 25 && canSprint(p)) { p.sprintT = 0.3; p.moveT = 0.25; }
+    const sp = C.playerSpeed * 0.9 * (p.sprintT > 0 && canSprint(p) ? C.sprintMult : 1) * (p.limp > 0 ? 0.55 : 1) * dt;
     const ox = p.x, oy = p.y;
     p.x += (tx - p.x) / d * Math.min(d, sp); p.y += (ty - p.y) / d * Math.min(d, sp);
     S.collide(p);
@@ -449,7 +453,13 @@ function tick(r, dt) {
       }
     }
     const resting = p.on === null && S.inRest(p.x, p.y);
-    if (p.on === null) p.fat = Math.max(0, p.fat - (resting ? C.recoverRest : C.recoverWalk) * dt);
+    p.sprintT = Math.max(0, p.sprintT - dt); p.moveT = Math.max(0, p.moveT - dt);
+    p.sprinting = r.st === 'playing' && canSprint(p) && p.sprintT > 0 && p.moveT > 0;
+    if (p.sprinting) {
+      // sprinting burns fatigue instead of recovering it; max it out and you're gassed on the spot
+      p.fat = Math.min(100, p.fat + C.sprintFatigue * dt);
+      if (p.fat >= 100) { p.sprinting = false; p.sprintT = 0; p.stun = 2; p.combo = 0; say(r, p, 'Gassed!', '#ff8a80'); ev(r, { k: 'buzz', to: p.id, v: 120 }); }
+    } else if (p.on === null) p.fat = Math.max(0, p.fat - (resting ? C.recoverRest : C.recoverWalk) * dt);
     else p.idle += dt;
     // hog heat: sitting idle on a machine, or leaving your towel while wandering
     let heating = 0;
@@ -496,7 +506,7 @@ function snapshot(r) {
     P.push({
       id: p.id, n: p.n, c: p.c, b: p.bot ? 1 : 0, x: Math.round(p.x), y: Math.round(p.y), on: p.on,
       ft: Math.round(p.fat), lk: p.on !== null || p.stun > 0 || p.lock > 0 ? 1 : 0, st: p.stun > 0 ? 1 : 0, lo: p.lock > 0 ? 1 : 0,
-      tp: p.tp, lm: p.limp > 0 ? 1 : 0, g: p.gains, gr: S.GK.map(k => Math.round(p.grp[k].p)), pl: S.GK.map(k => (p.grp[k].pulled ? 1 : 0)),
+      tp: p.tp, lm: p.limp > 0 ? 1 : 0, sp: p.sprinting ? 1 : 0, g: p.gains, gr: S.GK.map(k => Math.round(p.grp[k].p)), pl: S.GK.map(k => (p.grp[k].pulled ? 1 : 0)),
       hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd), rc: p.stats.reps, mc: p.stats.misses
     });
   }
@@ -530,7 +540,7 @@ wss.on('connection', ws => {
       ev(r, { k: 'ban', s: p.n + ' walked in', c: '#8FB6FF' });
       return;
     }
-    if (d.t === 'pos') movePlayer(r, p, d.x, d.y);
+    if (d.t === 'pos') { p.sprintT = d.s ? 0.3 : 0; movePlayer(r, p, d.x, d.y); }
     else if (d.t === 'act') act(r, p, String(d.a));
     else if (d.t === 'rep') rep(r, p, d.q);
     else if (d.t === 'emote') emote(r, p, d.e);
