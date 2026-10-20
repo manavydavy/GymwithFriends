@@ -670,7 +670,8 @@
     try { const r = await fetch('models/machines.json'); if (r.ok) MANIFEST = await r.json(); } catch (e) { MANIFEST = {}; }
     try { const r = await fetch('models/char.json'); if (r.ok) { const c = await r.json(); if (c.glb) { CHARMAP = c.sigs; GLB.char = 'models/char_parts.glb'; } } } catch (e) { CHARMAP = null; }
     const list = Object.assign({}, GLB);
-    Object.keys(MANIFEST).forEach(t => { if (MANIFEST[t].glb) list['m_' + t] = 'models/m_' + t + '.glb'; });
+    Object.keys(MANIFEST).forEach(t => { if (MANIFEST[t].glb && t !== '__room') list['m_' + t] = 'models/m_' + t + '.glb'; });
+    if (MANIFEST.__room && MANIFEST.__room.glb) list.room = 'models/room.glb';
     return Promise.all(Object.entries(list).map(([k, url]) => new Promise(res => loader.load(url, gl => {
       gl.scene.traverse(o => {
         if (!o.isMesh) return;
@@ -821,7 +822,7 @@
   const ELEV = 3.6;
   function heightAt(x, y) { if (x >= 1900) return ELEV; if (x < 200 && y > 520 && y < 1000) return y <= 570 ? ELEV : (1000 - y) / 430 * ELEV; return 0; }
   const map3 = (x, y) => { const [X, Z] = toWorld(x, y); return [X, heightAt(x, y), Z]; };
-  function buildRoom(scene, sh) {
+  function buildRoom(scene, sh, opts) {
     const R = new T.Group(); scene.add(R);
     const up = new T.Group(); R.add(up);
     const X = x => (x - 900) * SCALE, Z = y => (y - 550) * SCALE, Wd = 36, Dp = 22, H1 = 3.4, H2 = 7.2;
@@ -927,15 +928,30 @@
     sign(R, [{ t: 'GYM TV', size: 60, c: '#FFFFFF' }, { t: 'leg day highlights', size: 40, c: '#9BE89F', weight: '700' }], 1.3, 0.72, [rwx - 0.09, 2.3, Z(60) + 1.0], [0, -Math.PI / 2, 0], { bg: '#22324A' }, true);
     PROPS(R, up, sh);
     up.userData.noMerge = true;
+    if (opts && opts.raw) return { R, up, restMats };   // used by blender/capture_room.js
+    roomSwap(R, up);
     mergeStatic(R); mergeStatic(up);
     return { R, up, restMats };
+  }
+  // Swap the room's plain shapes for the Blender-built room (same rule as blender/capture_room.js)
+  const roomShape = o => o.isMesh && o.material && o.material.isMeshStandardMaterial && !o.material.map && !o.material.transparent && !(o.material.emissive && o.material.emissive.getHex());
+  function roomSwap(R, up) {
+    const man = MANIFEST.__room, src = ASSETS.room;
+    if (!man || !src) return;
+    const all = []; R.traverse(o => all.push(o));
+    if (all.length !== man.count) { console.warn('Room model out of date - using the built-in room'); return; }
+    const inst = glbInstance('room', '#888888');
+    const parts = [['room', R], ['up', up]].map(([n, par]) => [inst.getObjectByName(n), par]);
+    if (parts.some(p => !p[0])) return;
+    man.removed.forEach(i => { const o = all[i]; if (o.parent) o.parent.remove(o); });
+    parts.forEach(([node, par]) => { node.position.set(0, 0, 0); node.quaternion.identity(); node.scale.set(1, 1, 1); node.userData.noMerge = true; par.add(node); });
   }
   // Bake all non-moving, untextured meshes into one mesh per material (far fewer draw calls on phones)
   function mergeStatic(root) {
     root.updateMatrixWorld(true);
     const inv = new T.Matrix4().copy(root.matrixWorld).invert(), buckets = new Map(), kill = [];
     root.traverse(o => {
-      if (!o.isMesh || o.material.transparent || o.material.map) return;
+      if (!o.isMesh || o.material.transparent || o.material.map || o.geometry.getAttribute('color')) return;
       for (let p = o.parent; p && p !== root; p = p.parent) if (p.userData.noMerge) return;
       const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
       g.applyMatrix4(new T.Matrix4().multiplyMatrices(inv, o.matrixWorld));
