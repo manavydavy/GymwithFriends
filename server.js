@@ -29,10 +29,10 @@ const FILES = {
   '/DRACOLoader.js': ['DRACOLoader.js', 'application/javascript; charset=utf-8']
 };
 // 3D model files and the Draco decoder (simple names only, no sub-folders)
-const TYPES = { glb: 'model/gltf-binary', json: 'application/json', js: 'application/javascript; charset=utf-8', wasm: 'application/wasm' };
+const TYPES = { jpg: 'image/jpeg', glb: 'model/gltf-binary', json: 'application/json', js: 'application/javascript; charset=utf-8', wasm: 'application/wasm' };
 function lookup(u) {
   if (FILES[u]) return FILES[u];
-  const m = u.match(/^\/(models|draco)\/([\w-]+)\.(glb|json|js|wasm)$/);
+  const m = u.match(/^\/(models|draco)\/([\w-]+)\.(glb|json|js|wasm|jpg)$/);
   return m ? [m[1] + '/' + m[2] + '.' + m[3], TYPES[m[3]]] : null;
 }
 const server = http.createServer((req, res) => {

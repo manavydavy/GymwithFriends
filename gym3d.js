@@ -672,7 +672,9 @@
     const list = Object.assign({}, GLB);
     Object.keys(MANIFEST).forEach(t => { if (MANIFEST[t].glb && t !== '__room') list['m_' + t] = 'models/m_' + t + '.glb'; });
     if (MANIFEST.__room && MANIFEST.__room.glb) list.room = 'models/room.glb';
-    return Promise.all(Object.entries(list).map(([k, url]) => new Promise(res => loader.load(url, gl => {
+    const tex = MANIFEST.__room && MANIFEST.__room.glb ? new Promise(res => new T.TextureLoader().load('models/floor_ao.jpg', t => { ASSETS.floorAO = t; res(); }, undefined, () => res())) : null;
+    if (tex) await tex;
+    return Promise.all(Object.entries(list).map(([key, url]) => new Promise(res => loader.load(url, gl => {
       gl.scene.traverse(o => {
         if (!o.isMesh) return;
         // baked ambient occlusion lives in the vertex colours; soften it and drop the alpha channel
@@ -681,12 +683,15 @@
           const out = new Float32Array(c.count * 3);
           // r128 doesn't un-normalise integer colours for us
           const k = !c.normalized ? 1 : c.array instanceof Uint16Array ? 65535 : c.array instanceof Uint8Array ? 255 : 1;
-          for (let i = 0; i < c.count; i++) { const v = 0.42 + 0.58 * Math.pow(Math.min(1, c.getX(i) / k), 0.8); out[i * 3] = out[i * 3 + 1] = out[i * 3 + 2] = v; }
+          // the building gets a gentler touch, and none at all on the big walls (too few vertices to hold shading nicely)
+          const wallish = key === 'room' && /^GCM_(efe3cf|2f8f8a|ff8a2b|22252b|d9ccb5)_/.test(o.material.name || '');
+          const lo = wallish ? 1 : key === 'room' ? 0.8 : 0.42;
+          for (let i = 0; i < c.count; i++) { const v = lo + (1 - lo) * Math.pow(Math.min(1, c.getX(i) / k), 0.8); out[i * 3] = out[i * 3 + 1] = out[i * 3 + 2] = v; }
           o.geometry.setAttribute('color', new T.BufferAttribute(out, 3));
         }
         o.castShadow = true; o.receiveShadow = true;
       });
-      ASSETS[k] = gl.scene; res();
+      ASSETS[key] = gl.scene; res();
     }, undefined, e => { console.warn('Model failed to load, using the built-in one:', url, e); res(); }))));
   }
   function glbInstance(key, gc) {
@@ -930,6 +935,11 @@
     up.userData.noMerge = true;
     if (opts && opts.raw) return { R, up, restMats };   // used by blender/capture_room.js
     roomSwap(R, up);
+    // soft contact shadows baked in Blender, multiplied over the ground floor
+    if (ASSETS.floorAO) {
+      const ao = mesh(new T.PlaneGeometry(Wd, Dp), new T.MeshBasicMaterial({ map: ASSETS.floorAO, blending: T.MultiplyBlending, transparent: true, premultipliedAlpha: true, depthWrite: false }), R, [0, 0.004, 0], [-Math.PI / 2, 0, 0]);
+      ao.castShadow = ao.receiveShadow = false; ao.renderOrder = -1;
+    }
     mergeStatic(R); mergeStatic(up);
     return { R, up, restMats };
   }

@@ -81,5 +81,6 @@ For a quick test round, start it with a shorter clock: `ROUND_LENGTH=40 npm star
 `models/` holds `.glb` files made in Blender and loaded by the 3D view (`GLTFLoader.js`, plus `DRACOLoader.js` and `draco/` for compressed models). If a model fails to load, the game falls back to the built-in shapes. Add `?glb=off` to the URL to see the built-in shapes.
 
 - `squat_rack.glb`: hand-built squat rack with baked shading (both racks).
+- `room.glb` + `floor_ao.jpg`: the gym building rebuilt in Blender (rounded edges, baked shading on lockers, stairs, desk and props) and soft contact shadows baked onto the ground floor.
 - `machines.json` / `char.json`: map Blender parts onto the built-in machines and characters, so their animations keep working. A machine or the characters switch over once their `.glb` is added and marked `"glb": true`.
-- `blender/`: the scripts that read the shapes from `gym3d.js` (`capture.js`, `capture_char.js`) and rebuild them in Blender (`gc_build.py`, `gc_char.py`).
+- `blender/`: the scripts that read the shapes from `gym3d.js` (`capture.js`, `capture_char.js`, `capture_room.js`) and rebuild them in Blender (`gc_build.py`, `gc_char.py`, `gc_room.py`).
