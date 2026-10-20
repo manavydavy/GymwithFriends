@@ -23,7 +23,7 @@
     }
     return max;
   }
-  let upVisible = true, first = true, restMats = [], cone = null, puffTex = null, goldFx = null, goldArrow = null;
+  let upVisible = true, first = true, restMats = [], cone = null, puffTex = null, goldFx = null, goldArrow = null, preFx = null;
   const puffs = [], pool = [];
   function puff(pos, vel, o) {
     let s = pool.pop();
@@ -150,6 +150,21 @@
     const gb = new T.Mesh(new T.ShapeGeometry(sh), new T.MeshBasicMaterial({ color: '#3A2A00', transparent: true, opacity: 0.6, depthWrite: false, side: T.DoubleSide }));
     [gb, ga].forEach((m, i) => { m.rotation.x = -Math.PI / 2; m.position.y = 0.06 + i * 0.01; m.renderOrder = 6 + i; goldArrow.add(m); });
     gb.scale.setScalar(1.15); gb.position.x = -0.04;
+    // pre-workout tub (made in Blender): floats and spins over a pink ring until someone grabs it
+    preFx = new T.Group(); preFx.visible = false; scene.add(preFx);
+    if (G.ASSETS.pre) {
+      const tub = G.ASSETS.pre.clone(true); tub.position.set(0, 0, 0);
+      tub.traverse(o => { if (o !== tub) o.position.set(0, 0, 0); if (o.isMesh) { o.castShadow = true; o.material = o.material.clone(); o.material.userData.lin = 1; if (o.material.emissive && o.material.emissiveIntensity) o.material.emissiveIntensity = 0.6; } });
+      const spin = new T.Group(); spin.add(tub); spin.scale.setScalar(3.2); preFx.add(spin); preFx.userData.spin = spin;
+    } else {
+      const spin = new T.Group(); preFx.add(spin); preFx.userData.spin = spin;
+      const b = new T.Mesh(new T.CylinderGeometry(0.24, 0.24, 0.5, 24), new T.MeshStandardMaterial({ color: '#FF2E93', roughness: 0.35 })); b.position.y = 0.25; spin.add(b);
+      const l = new T.Mesh(new T.CylinderGeometry(0.255, 0.255, 0.11, 24), new T.MeshStandardMaterial({ color: '#15161A' })); l.position.y = 0.55; spin.add(l);
+    }
+    const pring = new T.Mesh(new T.RingGeometry(0.45, 0.62, 40), new T.MeshBasicMaterial({ color: '#FF5FC8', transparent: true, opacity: 0.9, depthWrite: false, side: T.DoubleSide }));
+    pring.rotation.x = -Math.PI / 2; pring.position.y = 0.04; preFx.add(pring); preFx.userData.ring = pring;
+    const pdisc = new T.Mesh(new T.CircleGeometry(0.45, 40), new T.MeshBasicMaterial({ color: '#FF5FC8', transparent: true, opacity: 0.22, depthWrite: false }));
+    pdisc.rotation.x = -Math.PI / 2; pdisc.position.y = 0.035; preFx.add(pdisc);
     if (REAL) {
       out.G3.LINEAR = true;
       scene.background.convertSRGBToLinear(); scene.fog.color.convertSRGBToLinear();
@@ -175,8 +190,9 @@
       scene.add(c.group);
       const track = new T.Mesh(new T.RingGeometry(0.52, 0.66, 48), new T.MeshBasicMaterial({ color: '#15171C', transparent: true, opacity: 0.55, depthWrite: false })); track.rotation.x = -Math.PI / 2;
       const ring = new T.Mesh(new T.RingGeometry(0.52, 0.66, 48, 1, Math.PI / 2, Math.PI * 2), new T.MeshBasicMaterial({ color: '#4CD964', transparent: true, depthWrite: false, side: T.DoubleSide })); ring.rotation.x = -Math.PI / 2;
-      scene.add(track); scene.add(ring); rings[p.id] = { track, ring };
-      linearize(c.group); linearize(track); linearize(ring);
+      const aura = new T.Mesh(new T.RingGeometry(0.72, 0.8, 48), new T.MeshBasicMaterial({ color: '#FF5FC8', transparent: true, opacity: 0.9, depthWrite: false, side: T.DoubleSide })); aura.rotation.x = -Math.PI / 2; aura.visible = false; scene.add(aura);
+      scene.add(track); scene.add(ring); rings[p.id] = { track, ring, aura };
+      linearize(c.group); linearize(track); linearize(ring); linearize(aura);
     }
     return c;
   }
@@ -243,6 +259,8 @@
       r.ring.geometry.setDrawRange(0, Math.floor(Math.min(p.ft, 100) / 100 * 48) * 6);
       setCol(r.ring.material.color, fatHue(p.ft));
       r.ring.material.opacity = p.ft >= 90 ? 0.45 + 0.55 * Math.abs(Math.sin(TT * 9)) : 1;
+      r.aura.visible = !!vis && p.pw > 0;
+      if (r.aura.visible) { r.aura.position.copy(r.track.position); r.aura.position.y += 0.01; r.aura.rotation.z = TT * 2; const k = 1 + 0.06 * Math.sin(TT * 8); r.aura.scale.set(k, k, k); }
     });
     Object.keys(chars).forEach(id => { if (!seen.has(+id)) dropChar(+id); });
     // steam from the ears at max fatigue, dust from sprinting feet
@@ -269,6 +287,17 @@
         const [x, y, z] = G.map3(ME.x, ME.y), r = 1.45 + 0.08 * Math.sin(TT * 6);
         goldArrow.position.set(x + Math.cos(g.a) * r, y, z + Math.sin(g.a) * r);
         goldArrow.rotation.y = -g.a; goldArrow.scale.setScalar(1 + 0.08 * Math.sin(TT * 6));
+      }
+    }
+    // pre-workout tub
+    if (preFx) {
+      const pr = S.st === 'playing' ? S.pr : null;
+      preFx.visible = !!pr && (pr[0] < 1900 || upVisible);
+      if (preFx.visible) {
+        const [x, y, z] = G.map3(pr[0], pr[1]); preFx.position.set(x, y, z);
+        const sp = preFx.userData.spin; sp.rotation.y = TT * 2.6; sp.position.y = 0.32 + Math.sin(TT * 3) * 0.08;
+        const k = 1 + 0.1 * Math.sin(TT * 5); preFx.userData.ring.scale.set(k, k, k);
+        if (Math.random() < dt * 6) puff(V().set(x + (Math.random() - 0.5) * 0.6, y + 0.2, z + (Math.random() - 0.5) * 0.6), V().set(0, 0.7, 0), { col: '#FF8AD8', life: 0.8, a: 0.7, r0: 0.05, r1: 0.16 });
       }
     }
     // golden machine marker
@@ -330,5 +359,11 @@
     return [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H];
   }
 
-  out.V3D = { ready: false, init, resize, render, project, upVisible: () => upVisible };
+  // pink burst where someone grabbed the pre-workout
+  function burst(x, y) {
+    if (!puffTex) return;
+    const [X, Y, Z] = G.map3(x, y);
+    for (let i = 0; i < 26; i++) { const a = Math.random() * 6.28, s = 0.8 + Math.random() * 1.6; puff(V().set(X, Y + 0.6, Z), V().set(Math.cos(a) * s, 0.6 + Math.random() * 1.2, Math.sin(a) * s), { col: i % 3 ? '#FF5FC8' : '#FFE600', life: 0.8, a: 1, r0: 0.08, r1: 0.25, drag: 0.15 }); }
+  }
+  out.V3D = { ready: false, init, resize, render, project, burst, upVisible: () => upVisible };
 })(window);

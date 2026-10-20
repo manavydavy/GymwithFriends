@@ -31,6 +31,8 @@
     staffSpeed: 80,
     staffScan: 2.6,        // seconds staff spend looking around at each lookout point
     playerSpeed: 185,
+    preDuration: 20,       // pre-workout power-up: seconds of no fatigue gain
+    preEvery: [14, 26],    // seconds between pre-workout drops (random in this range)
     perfectBonus: 7.5,     // extra gains on top of the 1.5x for every perfect rep
     goldReps: 5,           // after finishing the program: this many reps on the golden machine...
     goldBonus: 150,        // ...banks this bonus, then the golden machine moves

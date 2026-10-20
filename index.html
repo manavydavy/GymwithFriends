@@ -191,6 +191,9 @@ let FADE=0;
 function floorJump(o,x,y){const a=G3w(o.x,o.y),b=G3w(x,y);o.vo={x:a[0]-b[0],y:a[1]-b[1],z:a[2]-b[2],t:.35};o.x=x;o.y=y;if(o===ME&&!(VIEW3D&&window.V3D&&V3D.ready))FADE=.35}
 function G3w(x,y){const f=x>=1900,X=((f?x-2000:x)-900)*.02,Z=(y-550)*.02;let h=0;if(f)h=3.6;else if(x<200&&y>520&&y<1000)h=y<=570?3.6:(1000-y)/430*3.6;return [X,h,Z]}
 function voNow(o){if(!o||!o.vo||o.vo.t<=0)return null;const k=Math.pow(o.vo.t/.35,2);return {x:o.vo.x*k,y:o.vo.y*k,z:o.vo.z*k}}
+function tub2d(x,y,sc,spin){cx.save();cx.translate(x,y);cx.scale(sc*Math.max(.25,Math.abs(Math.cos(spin))),sc);
+cx.fillStyle='#6A2BF2';rr(-11,-14,22,28,5);cx.fill();cx.fillStyle='#FF2E93';cx.fillRect(-11,-7,22,15);cx.fillStyle='#FFE600';cx.fillRect(-11,-8,22,2);cx.fillRect(-11,8,22,2);
+cx.fillStyle='#15161A';rr(-12.5,-18,25,7,3);cx.fill();if(Math.cos(spin)>0){cx.fillStyle='#FFE600';cx.beginPath();cx.moveTo(-1,-6);cx.lineTo(4,-6);cx.lineTo(1,0);cx.lineTo(4,0);cx.lineTo(-3,7);cx.lineTo(-1,1);cx.lineTo(-4,1);cx.closePath();cx.fill()}cx.restore()}
 const BQ=[];function showBan(t,c){if(banner&&banner.time>1.2){if(BQ.length<3)BQ.push({t,c});return}banner={t,c,time:3}}
 function star(x,y,r,c,rot){cx.save();cx.translate(x,y);cx.rotate(rot||0);cx.beginPath();for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2,rr=i%2?r*.45:r;cx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}cx.closePath();cx.fillStyle=c;cx.fill();cx.strokeStyle='rgba(0,0,0,.5)';cx.lineWidth=r*.12;cx.stroke();cx.restore()}
 // First-time guides (remembered on this device): arrow to a program machine, then to a rest area when filling up. ?tut=1 shows them again.
@@ -220,6 +223,7 @@ d.ev.forEach(e=>{if(e.to&&e.to!==myId)return;
 if(e.k==='pop')pops.push({x:e.x,y:e.y,t:e.s,c:e.c,a:1.6});
 else if(e.k==='ban')showBan(e.s,e.c);
 else if(e.k==='gold')showBan('Golden machine: '+MACH[e.m].name,'#FFC93C');
+else if(e.k==='pre'){if(VIEW3D&&window.V3D&&V3D.ready)V3D.burst(e.x,e.y);for(let i=0;i<30;i++){const a=rnd(0,Math.PI*2),sp=rnd(40,140);steam.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,a:1,r:rnd(2,4),pink:1})}}
 else if(e.k==='buzz')buzz(e.v);
 else if(e.k==='steam'){for(let i=0;i<26;i++){const a=rnd(0,Math.PI*2),s=rnd(30,110);parts.push({x:e.x,y:e.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-30,a:rnd(.8,1.3)})}}});
 d.p.forEach(p=>{const a=an(p.id);if(a.rc===null||p.rc<a.rc||p.mc<a.mc){a.rc=p.rc;a.mc=p.mc;return}
@@ -270,7 +274,7 @@ row(ic('rgba(47,191,113,.16)','#2FBF71','<circle cx="12" cy="12" r="9"/><circle 
 row(ic('rgba(255,138,43,.18)','#FF8A2B','<path d="M12 3c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 0-8z"/>'),'2. Every rep fills you up','Watch the ring around your feet. Fill it and you\'re gassed, kicked off the machine.')+
 row(ic('rgba(63,169,245,.18)','#3FA9F5','<path d="M12 3.5c3 4 6 7.2 6 10.5a6 6 0 0 1-12 0c0-3.3 3-6.5 6-10.5z"/>'),'3. Rest areas empty you fast','Blue circles: fountains and the stretch mat. Rep, rest, repeat. The quicker your loop, the more you win.')+
 row(ic('rgba(255,201,60,.22)','#E0A100','<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>'),'4. Done all three? Go for gold','A golden machine lights up. '+C.goldReps+' reps on it in one go = +'+C.goldBonus+', then it moves. Rest first.')+
-'<div class="tricks">Tricks: '+k('Q','Towel')+' towel a machine or wipe off fatigue &nbsp; '+k('Shift','Sprint')+' sprint (burns fatigue)<br>'+k('F','Shove')+' shove people off machines. Haha. Just don\'t get caught: inside the staff\'s yellow cone it\'s a strike.</div></div>'}
+'<div class="tricks">Tricks: '+k('Q','Towel')+' towel a machine or wipe off fatigue &nbsp; '+k('Shift','Sprint')+' sprint (burns fatigue)<br>Grab the floating <b>pre-workout</b> tub: no fatigue for '+C.preDuration+'s<br>'+k('F','Shove')+' shove people off machines. Haha. Just don\'t get caught: inside the staff\'s yellow cone it\'s a strike.</div></div>'}
 function updateCard(){if(!S||!joined)return;const host=S.host===myId;
 if(S.st==='playing'||S.st==='countdown'){hideCard();return}
 if(S.st==='lobby'){const key='lobby|'+host+'|'+S.p.map(p=>p.id+p.n).join(',');if(cardKey===key)return;
@@ -355,6 +359,7 @@ let len=dist(ME.x,ME.y,p[i][0],p[i][1]);for(let j=i;j<p.length-1;j++)len+=dist(p
 GAc={t:TT,g:S.gm,a:Math.atan2(p[i][1]-ME.y,p[i][0]-ME.x),len,a0:GAc&&GAc.a0!==undefined?GAc.a0:null}}
 if(GAc.a0===null)GAc.a0=GAc.a;GAc.a0+=SH.angDiff(GAc.a,GAc.a0)*Math.min(1,dt*10);
 GA={a:GAc.a0,m:Math.max(1,Math.round(GAc.len*0.02)),x:mc.x+mc.w/2,y:mc.y+mc.h/2,t:m.dn?(m.ft>=20?'GOLD · rest first':'GOLD +'+C.goldBonus):'GOLD · after your program'}}}
+if(S.pr)hint('pre','A pre-workout tub just dropped somewhere. Grab it: no fatigue for '+C.preDuration+' seconds.');
 if(resting&&m.ft>=25&&!TUT.rest)tutDone('rest');
 if(m.dn&&S.gm>=0)hint('gold','Program done. Now chase the golden machine: '+C.goldReps+' reps on it in one go = +'+C.goldBonus+'. Rest first, that many reps burns a lot of fatigue.');
 if(m.on!==null&&S.pg.includes(MACH[m.on].g)&&!TUT.machine)tutDone('machine');
@@ -447,7 +452,7 @@ const sx=p.ft>=90?Math.sin(TT*55)*1.3:0;
 if(p.st)GM.tumble(pos.x,pos.y,a.spin,look(p));
 else GM.walker(pos.x+sx,pos.y,a.ang,look(p),a.ph,a.spd,p.lo?{hands:[[-7,-2],[7,-2]],bend:6}:null);
 sweat(pos.x,pos.y,p.ft)}
-const tag=p.em?'"'+p.em+'"':p.lo?'Staff lecture':p.st?'Ouch':'';
+const tag=p.em?'"'+p.em+'"':p.lo?'Staff lecture':p.st?'Ouch':p.pw?'PRE '+p.pw+'s':'';
 wl(mine?'You':p.n,pos.x,ny,mine?'#fff':p.c,10,true);
 if(tag)wl(tag,pos.x,ty,p.em?'#FFE29A':'#ffb070',12,true);
 else if(p.lm&&p.on===null)wl('Limping',pos.x,ty,'#ffb070',11,true)});
@@ -455,6 +460,11 @@ else if(p.lm&&p.on===null)wl('Limping',pos.x,ty,'#ffb070',11,true)});
 if(S.gm>=0&&S.st==='playing'){const mc=MACH[S.gm],cx0=mc.x+mc.w/2,cy0=mc.y+mc.h/2,pl=.5+.5*Math.sin(TT*5);
 cx.strokeStyle='rgba(255,201,60,'+(.55+pl*.45)+')';cx.lineWidth=4+pl*3;rr(mc.x-8,mc.y-8,mc.w+16,mc.h+16,10);cx.stroke();
 star(cx0,cy0,16+pl*3,'#FFC93C',TT*1.5);wl('GOLD: '+C.goldReps+' reps = +'+C.goldBonus,cx0,mc.y+mc.h+14,'#FFC93C',11,true)}
+// pre-workout tub spinning on the floor, and a pink aura on anyone who's had some
+if(S.pr&&SH.floorOf(S.pr[0])===SH.floorOf(ME.x)){const [px,py]=S.pr,pl=.5+.5*Math.sin(TT*5);
+cx.fillStyle='rgba(255,95,200,'+(.18+pl*.12)+')';cx.beginPath();cx.arc(px,py,26+pl*4,0,7);cx.fill();cx.strokeStyle='rgba(255,95,200,.8)';cx.lineWidth=2;cx.stroke();
+tub2d(px,py-6+Math.sin(TT*3)*3,1.15,TT*3);wl('PRE-WORKOUT',px,py+34,'#FF5FC8',10,true)}
+S.p.forEach(p=>{if(!p.pw||p.on!==null)return;const pos=p.id===myId?ME:disp[p.id];if(!pos)return;cx.strokeStyle='rgba(255,95,200,'+(.55+.35*Math.sin(TT*8))+')';cx.lineWidth=3;cx.setLineDash([6,5]);cx.lineDashOffset=-TT*30;cx.beginPath();cx.arc(pos.x,pos.y,30,0,7);cx.stroke();cx.setLineDash([])});
 // golden arrow around me
 if(GA){const sc=1/Z,pl=.5+.5*Math.sin(TT*6),r=40+16*sc+pl*4*sc,ax=ME.x+Math.cos(GA.a)*r,ay=ME.y+Math.sin(GA.a)*r;
 cx.strokeStyle='rgba(255,201,60,.35)';cx.lineWidth=3*sc;cx.beginPath();cx.arc(ME.x,ME.y,r,0,7);cx.stroke();
@@ -465,7 +475,7 @@ if(g.rest){const ph=(TT*1.1)%1;cx.strokeStyle='rgba(143,211,255,'+(1-ph)+')';cx.
 if(!g.gold){gArrow(g.x,tip,g.c,s*1.2);wl(g.t,g.x,tip-46*s,g.c,13,true)}
 if(dist(ME.x,ME.y,g.x,g.y)>150){const a=Math.atan2(g.y-ME.y,g.x-ME.x);gPtr(ME.x+Math.cos(a)*40,ME.y+Math.sin(a)*40,a,g.c,s*1.3);wl(g.sh,ME.x+Math.cos(a)*78,ME.y+Math.sin(a)*66,g.c,11,true)}}
 // steam from the ears, drawn over the players
-steam.forEach(p=>{const a=Math.max(0,p.a);cx.fillStyle='rgba(255,255,255,'+a*.95+')';cx.strokeStyle='rgba(120,135,150,'+a*.6+')';cx.lineWidth=1.2;cx.beginPath();cx.arc(p.x,p.y,p.r,0,7);cx.fill();cx.stroke()});
+steam.forEach(p=>{const a=Math.max(0,p.a);cx.fillStyle=p.pink?'rgba(255,95,200,'+a+')':'rgba(255,255,255,'+a*.95+')';cx.strokeStyle='rgba(120,135,150,'+a*.6+')';cx.lineWidth=1.2;cx.beginPath();cx.arc(p.x,p.y,p.r,0,7);cx.fill();cx.stroke()});
 // asks in progress
 S.ak.forEach(q=>{const a=q.by===myId?ME:disp[q.by];if(!a)return;const f=q.t/C.askTime;cx.strokeStyle='#FFC93C';cx.lineWidth=3;cx.beginPath();cx.arc(a.x,a.y,21,-Math.PI/2,-Math.PI/2+f*Math.PI*2);cx.stroke()});
 pops.forEach(p=>{cx.globalAlpha=Math.max(0,Math.min(1,p.a));wl(p.t,p.x,p.y,p.c,13,true);cx.globalAlpha=1});
@@ -529,6 +539,7 @@ cx.font='700 11px Inter, sans-serif';cx.textAlign='left';cx.fillStyle='#bbb';cx.
 cx.textAlign='center';cx.fillStyle=m.sk?'#ff8a80':'#bbb';cx.fillText('Strikes '+m.sk,VW/2,42);
 cx.textAlign='right';cx.fillStyle='#8FB6FF';const cl=m.cl!==null?S.m[m.cl]:null;cx.fillText(m.tc>0?'Towel drying '+m.tc+'s':cl&&cl[1]===myId?'Towel on '+(small?'':MACH[m.cl].name+' ')+Math.ceil(cl[2])+'s':'Towel ready',RX,42);
 drawRings(m,8,62,small?.86:1);
+if(m.pw>0){const t='PRE-WORKOUT '+m.pw+'s · no fatigue';cx.font='800 13px Inter, sans-serif';const w=cx.measureText(t).width+26,x0=VW/2-w/2,y0=small?(TOUCH?196:148):60;cx.fillStyle='rgba(255,46,147,'+(.82+.12*Math.sin(TT*6))+')';rr(x0,y0,w,24,12);cx.fill();cx.fillStyle='#fff';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(t,VW/2,y0+12.5)}
 const bw=small?120:150;const bh=drawBoard(VW-bw-8,62,bw);
 // minimap
 const showMini=!TOUCH||VH>=600;const f0=SH.FLOORS[0],f1=SH.FLOORS[1],mw=small||TOUCH?110:160,sc=mw/f0.w,mh=f0.h*sc,uw=f1.w*sc,uh=f1.h*sc,mx=VW-mw-8,my=TOUCH?62+bh+8:VH-mh-8,ux=mx-uw-12,uy=my;
@@ -539,6 +550,7 @@ const P=(x,y)=>x>=1900?[ux+(x-f1.x)*sc,uy+y*sc]:[mx+x*sc,my+y*sc];
 SH.WALLS.forEach(w=>{const [a,b]=P(w.x,w.y);cx.fillStyle=w.t==='lockers'?'#2E3440':'#6B7280';cx.fillRect(a,b,Math.max(1.2,w.w*sc),Math.max(1.2,w.h*sc))});
 SH.STAIRS.forEach(t=>{const [a,b]=P(t.x,t.y);cx.fillStyle='#8FD3FF';cx.fillRect(a,b,Math.max(2,t.w*sc),Math.max(2,t.h*sc))});
 MACH.forEach((mc,i)=>{const st=S.m[i];const gi=GK.indexOf(mc.g);const [a,b]=P(mc.x,mc.y);cx.fillStyle=st[0]!==null?(byId(st[0])||{c:'#888'}).c:st[1]!==null?'#ffffff':(S.pg.includes(mc.g)&&m.gr[gi]<100?'#FFC93C':'#666c78');cx.fillRect(a,b,Math.max(3,mc.w*sc),Math.max(3,mc.h*sc));if(i===S.gm){cx.strokeStyle='#FFC93C';cx.lineWidth=2;cx.strokeRect(a-3,b-3,Math.max(3,mc.w*sc)+6,Math.max(3,mc.h*sc)+6)}});
+if(S.pr){const [a,b]=P(S.pr[0],S.pr[1]);cx.fillStyle='#FF5FC8';cx.beginPath();cx.arc(a,b,3.5+Math.sin(TT*6),0,7);cx.fill()}
 REST.forEach(r=>{const [a,b]=P(r.x,r.y);cx.fillStyle='rgba(63,169,245,.6)';cx.beginPath();cx.arc(a,b,Math.max(3.5,r.r*sc),0,7);cx.fill();cx.strokeStyle='#8FD3FF';cx.lineWidth=1;cx.stroke()});
 S.p.forEach(p=>{if(p.id===myId)return;const d=disp[p.id];if(!d)return;const [a,b]=P(d.x,d.y);cx.fillStyle=p.c;cx.beginPath();cx.arc(a,b,2.5,0,7);cx.fill()});
 {const [a,b]=P(S.sf[0],S.sf[1]);cx.fillStyle='#3DAE5A';cx.fillRect(a-2,b-2,4,4)}
@@ -570,7 +582,8 @@ const lab=(t,x,y,h,c,sz)=>{if(SH.floorOf(x)===1&&!showUp)return;const s=P(x,y,h)
 MACH.forEach(mc=>{const u=useSpot(mc);if(SH.floorOf(mc.x)!==myF||dist(u.x,u.y,ME.x,ME.y)>430)return;lab(mc.name,mc.x+mc.w/2,mc.y+mc.h/2,2.45,'#fff',11)});
 lab('Big Gaz',DESK.x+DESK.w/2+40,DESK.y+DESK.h+32,2.75,'#ff8a80',11);if(S.sf)lab('Staff',S.sf[0],S.sf[1],2.35,'#9BE89F',11);
 S.p.forEach(p=>{const mine=p.id===myId;const pos=mine?ME:disp[p.id];if(!pos)return;let x=pos.x,y=pos.y,h=2.2;if(p.on!==null){const mc=MACH[p.on];x=mc.x+mc.w/2;y=mc.y+mc.h/2;h=2.05}
-lab(mine?'You':p.n,x,y,h,mine?'#fff':p.c,11);const tag=p.em?'"'+p.em+'"':p.lo?'Staff lecture':p.st?'Ouch':(p.lm&&p.on===null)?'Limping':'';if(tag)lab(tag,x,y,h+0.5,p.em?'#FFE29A':'#ffb070',12)});
+lab(mine?'You':p.n,x,y,h,mine?'#fff':p.c,11);const tag=p.em?'"'+p.em+'"':p.lo?'Staff lecture':p.st?'Ouch':p.pw?'PRE '+p.pw+'s':(p.lm&&p.on===null)?'Limping':'';if(tag)lab(tag,x,y,h+0.5,p.em?'#FFE29A':p.pw&&!p.st&&!p.lo?'#FF5FC8':'#ffb070',12)});
+if(S.pr)lab('PRE-WORKOUT',S.pr[0],S.pr[1],1.45,'#FF5FC8',11);
 if(GA){const s=P(ME.x+Math.cos(GA.a)*95,ME.y+Math.sin(GA.a)*95,0.4);if(s)label(GA.t+' · '+GA.m+'m',s[0],s[1],'#FFC93C',12,true)}
 if(S.gm>=0&&S.st==='playing'){const mc=MACH[S.gm];lab('GOLD: '+C.goldReps+' reps = +'+C.goldBonus,mc.x+mc.w/2,mc.y+mc.h/2,3.75,'#FFC93C',12)}
 if(guide&&!(SH.floorOf(guide.x)===1&&!showUp)){const g=guide,s=P(g.x,g.y,(g.rest?1.5:g.gold?4.3:2.9)+Math.sin(TT*6)*0.12);

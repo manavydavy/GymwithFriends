@@ -57,7 +57,7 @@ const BOT_NAMES = ['Dummy Dave', 'Dummy Shaz', 'Dummy Bazza'];
 
 function makeRoom(code) {
   const r = {
-    code, players: new Map(), st: 'lobby', t: 0, prog: S.PROGRAMS[0], gold: -1,
+    code, players: new Map(), st: 'lobby', t: 0, prog: S.PROGRAMS[0], gold: -1, pre: null, preT: 0,
     m: S.MACH.map(() => ({ user: null, claim: null })),
     staff: { x: S.STAFF_PATH[0][0], y: S.STAFF_PATH[0][1], i: 1, dir: 0, pause: 0 }, asks: [], ev: [], host: null, res: null,
     firstDone: false, warned: false
@@ -66,12 +66,12 @@ function makeRoom(code) {
   return r;
 }
 
-function freshStats() { return { shoves: 0, shoved: 0, steals: 0, perfects: 0, reps: 0, pulls: 0, strikes: 0, wipes: 0, misses: 0, golds: 0 }; }
+function freshStats() { return { shoves: 0, shoved: 0, steals: 0, perfects: 0, reps: 0, pulls: 0, strikes: 0, wipes: 0, misses: 0, golds: 0, pres: 0 }; }
 function resetPlayer(p, i) {
   Object.assign(p, {
     x: S.SPAWN(i)[0], y: S.SPAWN(i)[1], on: null, stairCd: 0, posIgnore: 0, fat: 0, combo: 0, miss: 0, stun: 0, kvx: 0, kvy: 0,
     shoveCd: 0, askCd: 0, towelCd: 0, limp: 0, sprintT: 0, moveT: 0, sprinting: false, idle: 0, heat: 0, strikes: 0, gains: 0, claim: null, lock: 0,
-    lastRep: 0, lastPos: Date.now(), done: false, goldN: 0, em: '', emT: 0, emCd: 0,
+    lastRep: 0, lastPos: Date.now(), done: false, goldN: 0, preT: 0, em: '', emT: 0, emCd: 0,
     grp: Object.fromEntries(S.GK.map(k => [k, { p: 0, pulled: false }])),
     stats: freshStats(), bt: {}
   });
@@ -233,7 +233,7 @@ function act(r, p, a) {
       if (d < bd) { bd = d; tgt = o; spot = sp; }
     }
     if (!tgt) { say(r, p, 'Nobody to shove'); return; }
-    p.shoveCd = C.shoveCooldown; p.fat = Math.min(99, p.fat + C.shoveFatigue);
+    p.shoveCd = C.shoveCooldown; if (p.preT <= 0) p.fat = Math.min(99, p.fat + C.shoveFatigue);
     p.stats.shoves++; tgt.stats.shoved++;
     let ang;
     if (tgt.on !== null && spot) {
@@ -303,7 +303,7 @@ function rep(r, p, q) {
     stepOff(r, p);
     return;
   }
-  p.fat += C.fatiguePerRep;
+  if (p.preT <= 0) p.fat += C.fatiguePerRep;
   if (p.fat >= 100) {
     p.fat = 100; p.combo = 0;
     say(r, p, 'Gassed!', '#ff8a80'); ev(r, { k: 'buzz', to: p.id, v: 120 });
@@ -366,6 +366,9 @@ function botThink(r, p, dt) {
     if (p.fat > 78 || (!onGold && g.p >= 100 && Math.random() < dt * 1.5)) act(r, p, 'use');
     return;
   }
+  // grab a nearby pre-workout
+  if (r.pre && b.goal !== 'pre' && S.floorOf(p.x) === S.floorOf(r.pre.x) && dist(p.x, p.y, r.pre.x, r.pre.y) < 320 && p.preT <= 0) { b.goal = 'pre'; b.path = route(p.x, p.y, r.pre.x, r.pre.y); }
+  if (b.goal === 'pre' && !r.pre) b.path = null;
   // pick a goal
   if (!b.path) {
     b.stuck = 0;
@@ -391,6 +394,7 @@ function botThink(r, p, dt) {
       b.goal = target; b.path = route(p.x, p.y, u.x, u.y);
     }
   }
+  if (b.goal === 'pre' && b.path.length === 0) { b.path = null; b.goal = null; return; }
   if (b.goal === 'rest' && b.path.length === 0) {
     if (p.fat <= 5) b.path = null;
     return;
@@ -420,7 +424,7 @@ function startRound(r) {
   r.st = 'countdown'; r.t = C.countdown; r.res = null;
   r.prog = S.PROGRAMS[Math.floor(Math.random() * S.PROGRAMS.length)];
   r.m.forEach(m => { m.user = null; m.claim = null; });
-  r.asks = []; r.firstDone = false; r.warned = false; r.gold = -1;
+  r.asks = []; r.firstDone = false; r.warned = false; r.gold = -1; r.pre = null; r.preT = rnd(10, 16);
   r.staff = { x: S.STAFF_PATH[0][0], y: S.STAFF_PATH[0][1], i: 1, dir: 0, pause: 0 };
   let i = 0;
   for (const p of r.players.values()) resetPlayer(p, i++);
@@ -439,6 +443,7 @@ function endRound(r) {
   award('Most shoves', 'shoves', v => v + (v === 1 ? ' shove' : ' shoves'));
   award('Biggest thief', 'steals', v => v + (v === 1 ? ' machine nicked' : ' machines nicked'));
   award('Perfectionist', 'perfects', v => v + ' perfect reps');
+  award('Pre-workout fiend', 'pres', v => v + (v === 1 ? ' tub' : ' tubs'));
   award('Gold digger', 'golds', v => v + (v === 1 ? ' golden machine' : ' golden machines'));
   award('Punching bag', 'shoved', v => 'shoved ' + v + (v === 1 ? ' time' : ' times'));
   award('Pulled something', 'pulls', v => v + (v === 1 ? ' muscle' : ' muscles'));
@@ -484,7 +489,7 @@ function tick(r, dt) {
     p.sprinting = r.st === 'playing' && canSprint(p) && p.sprintT > 0 && p.moveT > 0;
     if (p.sprinting) {
       // sprinting burns fatigue instead of recovering it; max it out and you're gassed on the spot
-      p.fat = Math.min(100, p.fat + C.sprintFatigue * dt);
+      if (p.preT <= 0) p.fat = Math.min(100, p.fat + C.sprintFatigue * dt);
       if (p.fat >= 100) { p.sprinting = false; p.sprintT = 0; p.stun = 2; p.combo = 0; say(r, p, 'Gassed!', '#ff8a80'); ev(r, { k: 'buzz', to: p.id, v: 120 }); }
     } else if (p.on === null) p.fat = Math.max(0, p.fat - (resting ? C.recoverRest : C.recoverWalk) * dt);
     else p.idle += dt;
@@ -523,8 +528,38 @@ function tick(r, dt) {
     }
   }
 
+  // pre-workout power-up: drops somewhere random, first to walk over it gets no fatigue gain for a while
+  for (const p of r.players.values()) p.preT = Math.max(0, p.preT - dt);
+  if (!r.pre) { r.preT -= dt; if (r.preT <= 0) r.pre = preSpot(r); }
+  else {
+    for (const p of r.players.values()) {
+      if (p.on !== null || p.stun > 0 || S.floorOf(p.x) !== S.floorOf(r.pre.x) || dist(p.x, p.y, r.pre.x, r.pre.y) > 34) continue;
+      p.preT = C.preDuration; p.stats.pres++;
+      ev(r, { k: 'ban', s: p.n + ' necked the pre-workout! No fatigue for ' + C.preDuration + 's', c: '#FF5FC8' });
+      ev(r, { k: 'pre', x: Math.round(r.pre.x), y: Math.round(r.pre.y) });
+      r.pre = null; r.preT = rnd(C.preEvery[0], C.preEvery[1]);
+      break;
+    }
+  }
+
   // staff patrol
   S.stepStaff(r.staff, dt);
+}
+// A random open spot on the floor: not inside anything, not on a rest circle or the stairs, not under the
+// mezzanine (you couldn't see it there), and not right next to anyone
+function preSpot(r) {
+  for (let i = 0; i < 80; i++) {
+    const up = Math.random() < 0.18, f = S.FLOORS[up ? 1 : 0];
+    const o = { x: f.x + 40 + Math.random() * (f.w - 80), y: 90 + Math.random() * (f.h - 130) };
+    const x = o.x, y = o.y; S.collide(o);
+    if (Math.abs(o.x - x) > 0.5 || Math.abs(o.y - y) > 0.5) continue;
+    if (S.inRest(x, y) || S.zoneOf(x, y) === 'stairs' || S.stairAt(x, y)) continue;
+    if (!up && x < 720 && y < 540) continue;
+    if (S.WALLS.some(w => x > w.x - 20 && x < w.x + w.w + 20 && y > w.y - 20 && y < w.y + w.h + 20)) continue;
+    if ([...r.players.values()].some(p => dist(p.x, p.y, x, y) < 160)) continue;
+    return { x: Math.round(x), y: Math.round(y) };
+  }
+  return null;
 }
 
 function snapshot(r) {
@@ -534,11 +569,11 @@ function snapshot(r) {
       id: p.id, n: p.n, c: p.c, b: p.bot ? 1 : 0, x: Math.round(p.x), y: Math.round(p.y), on: p.on,
       ft: Math.round(p.fat), lk: p.on !== null || p.stun > 0 || p.lock > 0 ? 1 : 0, st: p.stun > 0 ? 1 : 0, lo: p.lock > 0 ? 1 : 0,
       tp: p.tp, lm: p.limp > 0 ? 1 : 0, sp: p.sprinting ? 1 : 0, g: p.gains, gr: S.GK.map(k => Math.round(p.grp[k].p)), pl: S.GK.map(k => (p.grp[k].pulled ? 1 : 0)),
-      hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd), gn: p.goldN, rc: p.stats.reps, mc: p.stats.misses
+      hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd), gn: p.goldN, pw: Math.ceil(p.preT), rc: p.stats.reps, mc: p.stats.misses
     });
   }
   const msg = JSON.stringify({
-    t: 'snap', st: r.st, tm: Math.round(r.t * 10) / 10, pg: r.prog, gm: r.st === 'playing' ? r.gold : -1, host: r.host, code: r.code,
+    t: 'snap', st: r.st, tm: Math.round(r.t * 10) / 10, pg: r.prog, gm: r.st === 'playing' ? r.gold : -1, pr: r.st === 'playing' && r.pre ? [r.pre.x, r.pre.y] : null, host: r.host, code: r.code,
     sf: [Math.round(r.staff.x), Math.round(r.staff.y), Math.round(r.staff.dir * 100) / 100],
     m: r.m.map(m => [m.user, m.claim ? m.claim.owner : null, m.claim ? Math.round(m.claim.t * 10) / 10 : 0]),
     p: P, ak: r.asks.map(q => ({ by: q.by, ow: q.owner, m: q.m, t: Math.round(q.t * 10) / 10 })),

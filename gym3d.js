@@ -656,7 +656,7 @@
   // ---------- models made in Blender (.glb) ----------
   // Loaded once; if anything fails the procedural models above are used instead.
   const ASSETS = {};
-  const GLB = { squat: 'models/squat_rack.glb' };
+  const GLB = { squat: 'models/squat_rack.glb', pre: 'models/preworkout.glb' };
   // Blender material name -> game material [colour, roughness, metalness]. 'plate' takes the muscle-group colour.
   const GLB_MATS = { frame: ['#2B2F38', 0.55, 0.35], paint: ['#F07A3A', 0.45, 0.15], chrome: ['#E6EBF2', 0.18, 0.9], steel: ['#CBD2DC', 0.32, 0.75],
     steelDark: ['#5C6370', 0.45, 0.6], rubber: ['#1F2228', 0.95, 0], wood: ['#C88F55', 0.7, 0], black: ['#141518', 0.6, 0], white: ['#F4F1EA', 0.6, 0], plateRed: ['plate', 0.6, 0.05] };
