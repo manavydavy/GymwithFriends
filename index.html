@@ -353,8 +353,8 @@ const u=useSpot(mc);cx.strokeStyle='rgba(255,255,255,.16)';cx.lineWidth=2;cx.set
 if(owner){cx.save();cx.translate(mc.x+mc.w/2,mc.y+mc.h/2);cx.rotate(-.2);cx.fillStyle='#fff';cx.fillRect(-20,-10,40,20);cx.fillStyle=owner.c;cx.fillRect(-20,4,40,5);cx.restore();
 const f=Math.max(0,st[2]/C.claimDuration);cx.strokeStyle=owner.c;cx.lineWidth=4;cx.beginPath();cx.arc(mc.x+mc.w-10,mc.y+10,8,-Math.PI/2,-Math.PI/2+f*Math.PI*2);cx.stroke()}});
 // staff
-cx.fillStyle='rgba(94,224,122,.07)';cx.beginPath();cx.arc(S.sf[0],S.sf[1],C.staffSight,0,7);cx.fill();cx.strokeStyle='rgba(94,224,122,.25)';cx.lineWidth=1.5;cx.stroke();
-{const a=an('staff');GM.walker(S.sf[0],S.sf[1],a.ang,{col:'#3DAE5A',fat:0,skin:'#DDA877',hair:'#2B1D14',band:'#ffffff'},a.ph,a.spd)}wl('Staff',S.sf[0],S.sf[1]-27,'#9BE89F',11,true);
+{const d=S.sf[2]||0,R=C.staffSight,h=C.staffFov*Math.PI/360;cx.fillStyle='rgba(255,213,74,.17)';cx.beginPath();cx.moveTo(S.sf[0],S.sf[1]);cx.arc(S.sf[0],S.sf[1],R,d-h,d+h);cx.closePath();cx.fill();cx.strokeStyle='rgba(255,213,74,.55)';cx.lineWidth=2;cx.stroke()}cx.lineWidth=1.5;cx.stroke();
+{const a=an('staff');GM.walker(S.sf[0],S.sf[1],(S.sf[2]||0)+Math.PI/2,{col:'#3DAE5A',fat:0,skin:'#DDA877',hair:'#2B1D14',band:'#ffffff'},a.ph,a.spd)}wl('Staff',S.sf[0],S.sf[1]-27,'#9BE89F',11,true);
 parts.forEach(p=>{cx.fillStyle='rgba(235,245,255,'+Math.max(0,p.a*.55)+')';cx.beginPath();cx.arc(p.x,p.y,4+(1-p.a)*5,0,7);cx.fill()});
 // players: others first, you on top
 const list=S.p.slice().sort((a,b)=>(a.id===myId)-(b.id===myId));

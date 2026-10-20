@@ -4,7 +4,7 @@
   let T, G, SH, renderer, scene, camera, up, glcv, hemi, key;
   let machines = [], chars = {}, rings = {}, staff, gaz, W = 800, H = 500;
   const camPos = { x: 0, y: 12, z: 10 }, camTgt = { x: 0, y: 1, z: 0 };
-  let upVisible = true, first = true, restMats = [];
+  let upVisible = true, first = true, restMats = [], cone = null;
 
   function load(src) {
     return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); });
@@ -45,6 +45,13 @@
       return { b, m, hl, towel, stripe };
     });
     staff = G.makeChar({ col: '#3DAE5A', skin: '#DDA877', hair: '#2B1D14' }); scene.add(staff.group);
+    // yellow vision cone on the floor in front of the staff member
+    cone = new T.Group(); scene.add(cone);
+    const fov = SH.CFG.staffFov * Math.PI / 180, R = SH.CFG.staffSight * 0.02;
+    const cm = new T.Mesh(new T.CircleGeometry(R, 32, -fov / 2, fov), new T.MeshBasicMaterial({ color: '#FFD54A', transparent: true, opacity: 0.22, depthWrite: false, side: T.DoubleSide }));
+    cm.rotation.x = -Math.PI / 2; cm.position.y = 0.03; cone.add(cm);
+    const ce = new T.Mesh(new T.RingGeometry(R - 0.08, R, 32, 1, -fov / 2, fov), new T.MeshBasicMaterial({ color: '#FFD54A', transparent: true, opacity: 0.7, depthWrite: false, side: T.DoubleSide }));
+    ce.rotation.x = -Math.PI / 2; ce.position.y = 0.032; cone.add(ce);
     gaz = G.makeChar({ col: '#1A1A1A', skin: '#DDA877', hair: '#151515', shades: true, chain: true, scale: 1.15 });
     const gp = G.map3(SH.DESK.x + SH.DESK.w / 2 + 40, SH.DESK.y + SH.DESK.h + 32); gaz.group.position.set(gp[0], 0, gp[2]); scene.add(gaz.group);
     gaz.pose(G.POSE.stand(0, 0, { crossed: true }));
@@ -132,7 +139,8 @@
     });
     Object.keys(chars).forEach(id => { if (!seen.has(+id)) dropChar(+id); });
     // staff patrol
-    if (S.sf) { const a = an('staff'), [x, y, z] = G.map3(S.sf[0], S.sf[1]); staff.group.position.set(x, y, z); staff.group.rotation.y = -a.ang; staff.pose(G.POSE.stand(a.ph, Math.min(1, a.spd))); }
+    if (S.sf) { const a = an('staff'), [x, y, z] = G.map3(S.sf[0], S.sf[1]), d = S.sf[2] || 0; staff.group.position.set(x, y, z); staff.group.rotation.y = -(d + Math.PI / 2); staff.pose(G.POSE.stand(a.ph, Math.min(1, a.spd)));
+      const vis = S.sf[0] < 1900 || upVisible; staff.group.visible = vis; cone.visible = vis; cone.position.set(x, y, z); cone.rotation.y = -d; }
     // rest circles glow brighter when you need them
     const tired = me ? Math.min(1, Math.max(0, (me.ft - 40) / 50)) : 0;
     restMats.forEach((m, i) => { if (i % 2 === 0) m.opacity = 0.28 + tired * (0.22 + 0.15 * Math.sin(TT * 5)); });

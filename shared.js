@@ -26,7 +26,10 @@
     shoveCooldown: 3,
     shoveStun: 1.3,
     heatRate: 16,
-    staffSight: 200,
+    staffSight: 260,       // how far staff can see (map units)
+    staffFov: 100,         // width of the staff vision cone in degrees
+    staffSpeed: 80,
+    staffScan: 2.6,        // seconds staff spend looking around at each lookout point
     playerSpeed: 185,
     limpTime: 25,
     programBonus: 300,
@@ -109,7 +112,10 @@
   ];
   const DOOR = { x: 1080, y: 1100 };
   const SPAWN = i => [1130 - (i % 8) * 34, 1062];
-  const STAFF_PATH = [[300, 860], [1050, 860], [1255, 960], [1255, 300], [1600, 300], [1255, 300], [1255, 960], [1050, 860], [900, 560], [500, 560]];
+  // Staff patrol. 'scan' = stop and look all the way around. Between floors the staff take the stairs.
+  const STAFF_PATH = [[1050, 880], [980, 560, 'scan'], [890, 350], [890, 250, 'scan'], [490, 250, 'scan'], [200, 250, 'scan'], [490, 250], [490, 350], [560, 560, 'scan'],
+    [300, 1060], [100, 1060], [100, 620], [100, 560], [2100, 468], [2380, 260, 'scan'], [2600, 260, 'scan'], [2100, 468], [100, 615], [100, 1060],
+    [1050, 880], [1255, 1000], [1255, 300, 'scan'], [1600, 260, 'scan'], [1255, 300], [1255, 1000]];
   // Walking graph for practice dummies. Directed pairs go through the stair triggers.
   const NAV = {
     A: [680, 780], B: [300, 780], Q: [300, 1060], H: [1050, 880], C: [490, 350], D: [890, 350], E: [490, 250], F: [890, 250], G: [180, 240],
@@ -144,6 +150,33 @@
     return path;
   }
   // Push a circle (radius 15) out of machines and keep it inside the gym.
+  const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
+  // Move the staff member one step along the patrol
+  function stepStaff(s, dt) {
+    if (s.pause > 0) { s.pause -= dt; s.dir += dt * Math.PI * 2 / CFG.staffScan; return; }
+    const wp = STAFF_PATH[s.i];
+    if (floorOf(wp[0]) !== floorOf(s.x)) { s.x = wp[0]; s.y = wp[1]; s.i = (s.i + 1) % STAFF_PATH.length; return; }
+    const dx = wp[0] - s.x, dy = wp[1] - s.y, d = Math.hypot(dx, dy);
+    if (d < 3) { if (wp[2] === 'scan') s.pause = CFG.staffScan; s.i = (s.i + 1) % STAFF_PATH.length; return; }
+    const st = Math.min(d, CFG.staffSpeed * dt);
+    s.x += dx / d * st; s.y += dy / d * st;
+    s.dir -= angDiff(s.dir, Math.atan2(dy, dx)) * Math.min(1, dt * 5);
+  }
+  // Is a point inside the staff vision cone?
+  function staffSees(s, x, y) {
+    if (floorOf(x) !== floorOf(s.x)) return false;
+    const d = dist(s.x, s.y, x, y);
+    if (d > CFG.staffSight) return false;
+    if (d < 30) return true;
+    if (Math.abs(angDiff(Math.atan2(y - s.y, x - s.x), s.dir)) > CFG.staffFov * Math.PI / 360) return false;
+    return !WALLS.some(w => (w.t === 'wall' || w.t === 'lockers') && segHitsRect(s.x, s.y, x, y, w));
+  }
+  // Does the line from (x1,y1) to (x2,y2) pass through a rectangle?
+  function segHitsRect(x1, y1, x2, y2, r) {
+    let t0 = 0, t1 = 1; const dx = x2 - x1, dy = y2 - y1;
+    const clip = (p, q) => { if (p === 0) return q >= 0; const t = q / p; if (p < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; } return true; };
+    return clip(-dx, x1 - r.x) && clip(dx, r.x + r.w - x1) && clip(-dy, y1 - r.y) && clip(dy, r.y + r.h - y1) && t0 <= t1;
+  }
   function collide(o) {
     for (const r of SOLIDS) {
       const nx = Math.max(r.x, Math.min(o.x, r.x + r.w)), ny = Math.max(r.y, Math.min(o.y, r.y + r.h));
@@ -158,5 +191,5 @@
     o.y = Math.max(72, Math.min(f.y + f.h - 15, o.y));
   }
 
-  Object.assign(out, { CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, TREADS, DESK, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, route, zoneOf, floorOf, collide });
+  Object.assign(out, { CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, TREADS, DESK, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, route, zoneOf, floorOf, collide, stepStaff, staffSees, angDiff });
 })(typeof module !== 'undefined' ? module.exports : (window.SHARED = {}));

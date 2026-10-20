@@ -50,7 +50,7 @@ function makeRoom(code) {
   const r = {
     code, players: new Map(), st: 'lobby', t: 0, prog: S.PROGRAMS[0],
     m: S.MACH.map(() => ({ user: null, claim: null })),
-    staff: { x: S.STAFF_PATH[0][0], y: S.STAFF_PATH[0][1], i: 1 }, asks: [], ev: [], host: null, res: null,
+    staff: { x: S.STAFF_PATH[0][0], y: S.STAFF_PATH[0][1], i: 1, dir: 0, pause: 0 }, asks: [], ev: [], host: null, res: null,
     firstDone: false, warned: false
   };
   rooms.set(code, r);
@@ -227,7 +227,7 @@ function act(r, p, a) {
     ev(r, { k: 'pop', x: Math.round(tgt.x), y: Math.round(tgt.y - 30), s: 'SHOVED', c: '#fff' });
     ev(r, { k: 'ban', to: tgt.id, s: 'Shoved by ' + p.n + '!', c: '#ff8a80' });
     ev(r, { k: 'buzz', to: tgt.id, v: 80 });
-    if (dist(r.staff.x, r.staff.y, p.x, p.y) < C.staffSight) strike(r, p, 'staff saw that shove');
+    if (S.staffSees(r.staff, p.x, p.y)) strike(r, p, 'staff saw that shove');
   }
 }
 
@@ -382,7 +382,7 @@ function startRound(r) {
   r.prog = S.PROGRAMS[Math.floor(Math.random() * S.PROGRAMS.length)];
   r.m.forEach(m => { m.user = null; m.claim = null; });
   r.asks = []; r.firstDone = false; r.warned = false;
-  r.staff = { x: S.STAFF_PATH[0][0], y: S.STAFF_PATH[0][1], i: 1 };
+  r.staff = { x: S.STAFF_PATH[0][0], y: S.STAFF_PATH[0][1], i: 1, dir: 0, pause: 0 };
   let i = 0;
   for (const p of r.players.values()) resetPlayer(p, i++);
 }
@@ -478,9 +478,7 @@ function tick(r, dt) {
   }
 
   // staff patrol
-  const wp = S.STAFF_PATH[r.staff.i], sd = dist(r.staff.x, r.staff.y, wp[0], wp[1]);
-  if (sd < 3) r.staff.i = (r.staff.i + 1) % S.STAFF_PATH.length;
-  else { const s = Math.min(sd, 62 * dt); r.staff.x += (wp[0] - r.staff.x) / sd * s; r.staff.y += (wp[1] - r.staff.y) / sd * s; }
+  S.stepStaff(r.staff, dt);
 }
 
 function snapshot(r) {
@@ -495,7 +493,7 @@ function snapshot(r) {
   }
   const msg = JSON.stringify({
     t: 'snap', st: r.st, tm: Math.round(r.t * 10) / 10, pg: r.prog, host: r.host, code: r.code,
-    sf: [Math.round(r.staff.x), Math.round(r.staff.y)],
+    sf: [Math.round(r.staff.x), Math.round(r.staff.y), Math.round(r.staff.dir * 100) / 100],
     m: r.m.map(m => [m.user, m.claim ? m.claim.owner : null, m.claim ? Math.round(m.claim.t * 10) / 10 : 0]),
     p: P, ak: r.asks.map(q => ({ by: q.by, ow: q.owner, m: q.m, t: Math.round(q.t * 10) / 10 })),
     ev: r.ev, res: r.st === 'results' ? r.res : null
