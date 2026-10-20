@@ -761,7 +761,7 @@
     sign(dg, [{ t: 'EXIT', size: 170, c: '#FFFFFF' }], 0.5, 0.2, [0.9, 0.85, 0.36], [0, 0, 0], { bg: '#1E9E4A' }, true);
     // interior walls, half walls, railings, lockers
     sh.WALLS.forEach(w => {
-      if (w.t === 'wall') { wall(w.x + w.w / 2, w.y, w.x + w.w / 2, w.y + w.h, H1, { th: w.w * SCALE }); }
+      if (w.t === 'wall') { if (w.w > w.h) wall(w.x, w.y + w.h / 2, w.x + w.w, w.y + w.h / 2, H1, { th: w.h * SCALE }); else wall(w.x + w.w / 2, w.y, w.x + w.w / 2, w.y + w.h, H1, { th: w.w * SCALE }); }
       else if (w.t === 'half') { const g = group(R, [X(w.x + w.w / 2), 0, Z(w.y + w.h / 2)]); box(w.w * SCALE, 1.0, w.h * SCALE, dado, g, [0, 0.5, 0]); box(w.w * SCALE + 0.04, 0.06, w.h * SCALE + 0.06, stripe, g, [0, 1.02, 0]); }
       else if (w.t === 'lockers') {
         const g = group(R, [X(w.x + w.w / 2), 0, Z(w.y + w.h / 2)]), bw = w.w * SCALE, bd = w.h * SCALE;
@@ -830,7 +830,7 @@
     PROPS(R, up, sh);
     up.userData.noMerge = true;
     mergeStatic(R); mergeStatic(up);
-    return { R, up };
+    return { R, up, restMats };
   }
   // Bake all non-moving, untextured meshes into one mesh per material (far fewer draw calls on phones)
   function mergeStatic(root) {
@@ -856,9 +856,17 @@
       const mesh = new T.Mesh(m, b.mat); mesh.castShadow = b.cast; mesh.receiveShadow = true; root.add(mesh);
     });
   }
+  const restMats = [];
   function PROPS(R, up, sh) {
     sh.REST.forEach(r => {
       const [x, y3, z] = map3(r.x, r.y), par = r.x >= 1900 ? up : R;
+      // big blue rest circle on the floor
+      const fillM = new T.MeshBasicMaterial({ color: '#3FA9F5', transparent: true, opacity: 0.32, depthWrite: false });
+      const edgeM = new T.MeshBasicMaterial({ color: '#8FD3FF', transparent: true, opacity: 0.9, depthWrite: false });
+      const disc = mesh(new T.CircleGeometry(r.r * SCALE, 40), fillM, par, [x, y3 + 0.02, z], [-Math.PI / 2, 0, 0]); disc.castShadow = disc.receiveShadow = false;
+      const edge = mesh(new T.RingGeometry(r.r * SCALE - 0.1, r.r * SCALE, 48), edgeM, par, [x, y3 + 0.022, z], [-Math.PI / 2, 0, 0]); edge.castShadow = edge.receiveShadow = false;
+      const lbl = sign(par, [{ t: 'REST', size: 150, c: 'rgba(255,255,255,.85)' }], 1.1, 0.42, [x, y3 + 0.03, z + r.r * SCALE * 0.62], [-Math.PI / 2, 0, 0], { bg: 'none' }); lbl.material.transparent = true; lbl.material.depthWrite = false;
+      restMats.push(fillM, edgeM);
       if (r.n === 'Stretch mat') {
         const mat = box(r.r * 2 * SCALE, 0.04, r.r * 1.4 * SCALE, std('#3F9E92', 0.9), R, [x, 0.02, z]); mat.castShadow = false;
         [-0.5, 0.2].forEach((dx, i) => mesh(cylG(0.08, 0.08, 0.5, 12), std(i ? '#FF8A2B' : '#2F6FE0', 0.6), R, [x + dx, 0.12, z + 0.5], [0, 0, Math.PI / 2]));

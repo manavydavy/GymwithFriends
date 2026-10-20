@@ -4,7 +4,7 @@
   let T, G, SH, renderer, scene, camera, up, glcv, hemi, key;
   let machines = [], chars = {}, rings = {}, staff, gaz, W = 800, H = 500;
   const camPos = { x: 0, y: 12, z: 10 }, camTgt = { x: 0, y: 1, z: 0 };
-  let upVisible = true, first = true;
+  let upVisible = true, first = true, restMats = [];
 
   function load(src) {
     return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); });
@@ -29,7 +29,7 @@
     key = new T.DirectionalLight('#FFF1DC', 0.85); key.position.set(-10, 26, 15); key.castShadow = true;
     key.shadow.mapSize.set(1536, 1536); Object.assign(key.shadow.camera, { left: -21, right: 21, top: 15, bottom: -15, near: 1, far: 70 });
     key.shadow.bias = -0.0006; key.shadow.normalBias = 0.02; scene.add(key);
-    const room = G.buildRoom(scene, SH); up = room.up;
+    const room = G.buildRoom(scene, SH); up = room.up; restMats = room.restMats;
     const hlMat = new T.MeshBasicMaterial({ color: '#FFC93C', transparent: true, opacity: 0.8, depthWrite: false });
     machines = SH.MACH.map(m => {
       const b = G.buildMachine(m, SH.GROUPS[m.g].c); (m.x >= 1900 ? up : scene).add(b.g);
@@ -133,6 +133,9 @@
     Object.keys(chars).forEach(id => { if (!seen.has(+id)) dropChar(+id); });
     // staff patrol
     if (S.sf) { const a = an('staff'), [x, y, z] = G.map3(S.sf[0], S.sf[1]); staff.group.position.set(x, y, z); staff.group.rotation.y = -a.ang; staff.pose(G.POSE.stand(a.ph, Math.min(1, a.spd))); }
+    // rest circles glow brighter when you need them
+    const tired = me ? Math.min(1, Math.max(0, (me.ft - 40) / 50)) : 0;
+    restMats.forEach((m, i) => { if (i % 2 === 0) m.opacity = 0.28 + tired * (0.22 + 0.15 * Math.sin(TT * 5)); });
     // closing time: the lights go down
     const dim = S.st === 'playing' && S.tm < 30 ? (30 - S.tm) / 30 : 0;
     hemi.intensity = 0.75 - dim * 0.35; key.intensity = 0.85 - dim * 0.4;
