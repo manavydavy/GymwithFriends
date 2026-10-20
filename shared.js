@@ -31,6 +31,8 @@
     staffSpeed: 80,
     staffScan: 2.6,        // seconds staff spend looking around at each lookout point
     playerSpeed: 185,
+    goldReps: 5,           // after finishing the program: this many reps on the golden machine...
+    goldBonus: 150,        // ...banks this bonus, then the golden machine moves
     sprintMult: 1.6,       // hold Shift: this much faster...
     sprintFatigue: 20,     // ...but fatigue climbs this much per second (no recovery). Hit 100 and you're gassed
     limpTime: 25,

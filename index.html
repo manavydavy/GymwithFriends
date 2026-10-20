@@ -184,6 +184,8 @@ if(mine){cx.strokeStyle='rgba(255,255,255,.8)';cx.lineWidth=1.5;rr(x-5,y-5,w+10,
 function sweat(x,y,fat){if(fat<=70)return;cx.fillStyle='#8FD3FF';for(let i=0;i<2;i++){const q=TT*3+i*3.1;cx.beginPath();cx.arc(x+Math.cos(q)*19,y+Math.sin(q)*17+((TT*40+i*20)%10),2.4,0,7);cx.fill()}}
 
 function hint(k,t){if(seen[k])return;seen[k]=1;hintMsg={t,time:7}}
+const BQ=[];function showBan(t,c){if(banner&&banner.time>1.2){if(BQ.length<3)BQ.push({t,c});return}banner={t,c,time:3}}
+function star(x,y,r,c,rot){cx.save();cx.translate(x,y);cx.rotate(rot||0);cx.beginPath();for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2,rr=i%2?r*.45:r;cx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}cx.closePath();cx.fillStyle=c;cx.fill();cx.strokeStyle='rgba(0,0,0,.5)';cx.lineWidth=r*.12;cx.stroke();cx.restore()}
 // First-time guides (remembered on this device): arrow to a program machine, then to a rest area when filling up. ?tut=1 shows them again.
 let TUT={},guide=null;try{TUT=JSON.parse(localStorage.getItem('gc_tut')||'{}')||{}}catch(e){}
 if(/[?&]tut=1/.test(location.search))TUT={};
@@ -209,7 +211,8 @@ if(m){if(m.tp!==ME.tp){ME.x=m.x;ME.y=m.y;ME.tp=m.tp}
 if(m.on!==ME.on){if(m.on!==null){ME.phase=-Math.PI/2;ME.zc=rnd(.3,.7);hint('rep','Tap Rep when the white marker is in the green. Gold is a perfect rep.')}ME.on=m.on}}
 d.ev.forEach(e=>{if(e.to&&e.to!==myId)return;
 if(e.k==='pop')pops.push({x:e.x,y:e.y,t:e.s,c:e.c,a:1.6});
-else if(e.k==='ban')banner={t:e.s,c:e.c,time:3};
+else if(e.k==='ban')showBan(e.s,e.c);
+else if(e.k==='gold')showBan('Golden machine: '+MACH[e.m].name,'#FFC93C');
 else if(e.k==='buzz')buzz(e.v);
 else if(e.k==='steam'){for(let i=0;i<26;i++){const a=rnd(0,Math.PI*2),s=rnd(30,110);parts.push({x:e.x,y:e.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-30,a:rnd(.8,1.3)})}}});
 d.p.forEach(p=>{const a=an(p.id);if(a.rc===null||p.rc<a.rc||p.mc<a.mc){a.rc=p.rc;a.mc=p.mc;return}
@@ -259,6 +262,7 @@ return '<div class="howto"><h3>How to win</h3><p class="sub">Most gains when the
 row(ic('rgba(47,191,113,.16)','#2FBF71','<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>'),'1. Train today\'s muscles','Big Gaz picks 3 muscle groups each round. Glowing machines count. Anything else is half gains.')+
 row(ic('rgba(255,138,43,.18)','#FF8A2B','<path d="M12 3c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 0-8z"/>'),'2. Every rep fills you up','Watch the ring around your feet. Fill it and you\'re gassed, kicked off the machine.')+
 row(ic('rgba(63,169,245,.18)','#3FA9F5','<path d="M12 3.5c3 4 6 7.2 6 10.5a6 6 0 0 1-12 0c0-3.3 3-6.5 6-10.5z"/>'),'3. Rest areas empty you fast','Blue circles: fountains and the stretch mat. Rep, rest, repeat. The quicker your loop, the more you win.')+
+row(ic('rgba(255,201,60,.22)','#E0A100','<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>'),'4. Done all three? Go for gold','A golden machine lights up. '+C.goldReps+' reps on it in one go = +'+C.goldBonus+', then it moves. Rest first.')+
 '<div class="tricks">Tricks: '+k('Q','Towel')+' towel a machine or wipe off fatigue &nbsp; '+k('Shift','Sprint')+' sprint (burns fatigue)<br>'+k('F','Shove')+' shove people off machines. Haha. Just don\'t get caught: inside the staff\'s yellow cone it\'s a strike.</div></div>'}
 function updateCard(){if(!S||!joined)return;const host=S.host===myId;
 if(S.st==='playing'||S.st==='countdown'){hideCard();return}
@@ -302,6 +306,7 @@ steam.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.15,dt);p.vy-=20*dt;p
 dust.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.a-=dt*2.2});dust=dust.filter(p=>p.a>0);
 pops.forEach(p=>{p.y-=24*dt;p.a-=dt});pops=pops.filter(p=>p.a>0);
 if(banner){banner.time-=dt;if(banner.time<=0)banner=null}
+if(!banner&&BQ.length)banner=Object.assign(BQ.shift(),{time:3});
 if(hintMsg){hintMsg.time-=dt;if(hintMsg.time<=0)hintMsg=null}
 if(!S)return;
 for(const p of S.p){if(p.id===myId)continue;const d=disp[p.id];if(!d)continue;const k=Math.min(1,dt*12);d.x+=(p.x-d.x)*k;d.y+=(p.y-d.y)*k;
@@ -328,9 +333,11 @@ guide=null;
 if(S.st==='playing'){
 if(m.on===null&&!m.lk){const fl=SH.floorOf(ME.x);
 if(!TUT.rest&&m.ft>=60&&!resting){let b=null,bd=1e9;REST.forEach(r=>{if(SH.floorOf(r.x)!==fl)return;const d=dist(ME.x,ME.y,r.x,r.y);if(d<bd){bd=d;b=r}});if(b)guide={x:b.x,y:b.y,t:'Rest here, you\'re filling up',sh:'Rest',c:'#8FD3FF',rest:b}}
+else if(m.dn&&S.gm>=0){const mc=MACH[S.gm];guide={x:mc.x+mc.w/2,y:mc.y+mc.h/2,t:'Golden machine: '+C.goldReps+' reps = +'+C.goldBonus+(m.ft>=20?' (rest first)':''),sh:'Golden machine',c:'#FFC93C',gold:1}}
 else if(!TUT.machine){const i=nearMachine(1e9,j=>{const st=S.m[j],mc=MACH[j],gi=GK.indexOf(mc.g);return st[0]===null&&(st[1]===null||st[1]===myId)&&S.pg.includes(mc.g)&&m.gr[gi]<100&&!m.pl[gi]&&SH.floorOf(mc.x)===fl});
 if(i>=0){const mc=MACH[i];guide={x:mc.x+mc.w/2,y:mc.y+mc.h/2,t:'Today\'s muscles. Hop on',sh:'Today\'s muscles',c:'#9BE89F',mi:i}}}}
 if(resting&&m.ft>=25&&!TUT.rest)tutDone('rest');
+if(m.dn&&S.gm>=0)hint('gold','Program done. Now chase the golden machine: '+C.goldReps+' reps on it in one go = +'+C.goldBonus+'. Rest first, that many reps burns a lot of fatigue.');
 if(m.on!==null&&S.pg.includes(MACH[m.on].g)&&!TUT.machine)tutDone('machine');
 // hopped on something that isn't on today's program
 if(m.on!==ME.lastOn){ME.lastOn=m.on;if(m.on!==null&&!S.pg.includes(MACH[m.on].g)){const mc=MACH[m.on];pops.push({x:mc.x+mc.w/2,y:mc.y-30,t:'Not on today\'s program: half gains',c:'#ffb070',a:2.6})}}}
@@ -421,17 +428,21 @@ const tag=p.em?'"'+p.em+'"':p.lo?'Staff lecture':p.st?'Ouch':'';
 wl(mine?'You':p.n,pos.x,ny,mine?'#fff':p.c,10,true);
 if(tag)wl(tag,pos.x,ty,p.em?'#FFE29A':'#ffb070',12,true);
 else if(p.lm&&p.on===null)wl('Limping',pos.x,ty,'#ffb070',11,true)});
+// golden machine
+if(S.gm>=0&&S.st==='playing'){const mc=MACH[S.gm],cx0=mc.x+mc.w/2,cy0=mc.y+mc.h/2,pl=.5+.5*Math.sin(TT*5);
+cx.strokeStyle='rgba(255,201,60,'+(.55+pl*.45)+')';cx.lineWidth=4+pl*3;rr(mc.x-8,mc.y-8,mc.w+16,mc.h+16,10);cx.stroke();
+star(cx0,cy0,16+pl*3,'#FFC93C',TT*1.5);wl('GOLD: '+C.goldReps+' reps = +'+C.goldBonus,cx0,mc.y+mc.h+14,'#FFC93C',11,true)}
 // first-time guide arrow
 if(guide){const g=guide,s=1/Z,tip=g.y-(g.rest?g.rest.r*.2:34)+Math.sin(TT*6)*6*s;
 if(g.rest){const ph=(TT*1.1)%1;cx.strokeStyle='rgba(143,211,255,'+(1-ph)+')';cx.lineWidth=4*s;cx.beginPath();cx.arc(g.x,g.y,g.rest.r+ph*34,0,7);cx.stroke()}
-gArrow(g.x,tip,g.c,s*1.2);wl(g.t,g.x,tip-46*s,g.c,13,true);
+if(!g.gold){gArrow(g.x,tip,g.c,s*1.2);wl(g.t,g.x,tip-46*s,g.c,13,true)}
 if(dist(ME.x,ME.y,g.x,g.y)>150){const a=Math.atan2(g.y-ME.y,g.x-ME.x);gPtr(ME.x+Math.cos(a)*40,ME.y+Math.sin(a)*40,a,g.c,s*1.3);wl(g.sh,ME.x+Math.cos(a)*78,ME.y+Math.sin(a)*66,g.c,11,true)}}
 // steam from the ears, drawn over the players
 steam.forEach(p=>{const a=Math.max(0,p.a);cx.fillStyle='rgba(255,255,255,'+a*.95+')';cx.strokeStyle='rgba(120,135,150,'+a*.6+')';cx.lineWidth=1.2;cx.beginPath();cx.arc(p.x,p.y,p.r,0,7);cx.fill();cx.stroke()});
 // asks in progress
 S.ak.forEach(q=>{const a=q.by===myId?ME:disp[q.by];if(!a)return;const f=q.t/C.askTime;cx.strokeStyle='#FFC93C';cx.lineWidth=3;cx.beginPath();cx.arc(a.x,a.y,21,-Math.PI/2,-Math.PI/2+f*Math.PI*2);cx.stroke()});
 pops.forEach(p=>{cx.globalAlpha=Math.max(0,Math.min(1,p.a));wl(p.t,p.x,p.y,p.c,13,true);cx.globalAlpha=1});
-if(S.st==='playing'&&S.tm<30){cx.fillStyle='rgba(5,6,10,'+((30-S.tm)/30*.42)+')';cx.fillRect(0,0,W,H)}}
+if(S.st==='playing'&&S.tm<20){cx.fillStyle='rgba(5,6,10,'+((20-S.tm)/20*.42)+')';cx.fillRect(0,0,W,H)}}
 
 function wrap(t,maxW){const words=t.split(' ');const lines=[];let cur='';words.forEach(w=>{const tt=cur?cur+' '+w:w;if(cx.measureText(tt).width>maxW&&cur){lines.push(cur);cur=w}else cur=tt});if(cur)lines.push(cur);return lines}
 function drawBodyMap(m,x,y,s){const tg=S.pg;const h=150+tg.length*17;cx.save();cx.translate(x,y);cx.scale(s,s);
@@ -476,7 +487,7 @@ const rank=S.p.slice().sort((a,b)=>b.g-a.g).findIndex(p=>p.id===myId)+1;
 cx.textBaseline='middle';cx.font='800 '+(small?13:15)+'px Inter, sans-serif';cx.textAlign='left';cx.fillStyle='#fff';
 cx.fillText(small?S.pg.map(k=>GROUPS[k].n.slice(0,5)).join(' + '):'Today: '+S.pg.map(k=>GROUPS[k].n).join(' + '),10,17);
 const RX=VW-10-(TOUCH?54:0);cx.textAlign='right';cx.fillText(ord(rank)+' · '+m.g,RX,17);
-cx.textAlign='center';cx.font='400 '+(small?20:24)+'px Bungee, Impact, sans-serif';cx.fillStyle=S.tm<30?'#ff8a80':'#FFC93C';cx.fillText(clock,VW/2,20);
+cx.textAlign='center';cx.font='400 '+(small?20:24)+'px Bungee, Impact, sans-serif';cx.fillStyle=S.tm<20?'#ff8a80':'#FFC93C';cx.fillText(clock,VW/2,20);
 cx.font='700 11px Inter, sans-serif';cx.textAlign='left';cx.fillStyle='#bbb';cx.fillText('Heat',10,41);const hb=small?50:80;cx.fillStyle='#3a3f4a';rr(40,36,hb,9,4);cx.fill();cx.fillStyle=m.hz>70?'#ff6b6b':'#ffb070';rr(40,36,Math.max(1,hb*m.hz/100),9,4);cx.fill();
 cx.textAlign='center';cx.fillStyle=m.sk?'#ff8a80':'#bbb';cx.fillText('Strikes '+m.sk,VW/2,42);
 cx.textAlign='right';cx.fillStyle='#8FB6FF';const cl=m.cl!==null?S.m[m.cl]:null;cx.fillText(m.tc>0?'Towel drying '+m.tc+'s':cl&&cl[1]===myId?'Towel on '+(small?'':MACH[m.cl].name+' ')+Math.ceil(cl[2])+'s':'Towel ready',RX,42);
@@ -490,7 +501,7 @@ panel(mx,my,mw,mh,myF===0);panel(ux,uy,uw,uh,myF===1);
 const P=(x,y)=>x>=1900?[ux+(x-f1.x)*sc,uy+y*sc]:[mx+x*sc,my+y*sc];
 SH.WALLS.forEach(w=>{const [a,b]=P(w.x,w.y);cx.fillStyle=w.t==='lockers'?'#2E3440':'#6B7280';cx.fillRect(a,b,Math.max(1.2,w.w*sc),Math.max(1.2,w.h*sc))});
 SH.STAIRS.forEach(t=>{const [a,b]=P(t.x,t.y);cx.fillStyle='#8FD3FF';cx.fillRect(a,b,Math.max(2,t.w*sc),Math.max(2,t.h*sc))});
-MACH.forEach((mc,i)=>{const st=S.m[i];const gi=GK.indexOf(mc.g);const [a,b]=P(mc.x,mc.y);cx.fillStyle=st[0]!==null?(byId(st[0])||{c:'#888'}).c:st[1]!==null?'#ffffff':(S.pg.includes(mc.g)&&m.gr[gi]<100?'#FFC93C':'#666c78');cx.fillRect(a,b,Math.max(3,mc.w*sc),Math.max(3,mc.h*sc))});
+MACH.forEach((mc,i)=>{const st=S.m[i];const gi=GK.indexOf(mc.g);const [a,b]=P(mc.x,mc.y);cx.fillStyle=st[0]!==null?(byId(st[0])||{c:'#888'}).c:st[1]!==null?'#ffffff':(S.pg.includes(mc.g)&&m.gr[gi]<100?'#FFC93C':'#666c78');cx.fillRect(a,b,Math.max(3,mc.w*sc),Math.max(3,mc.h*sc));if(i===S.gm){cx.strokeStyle='#FFC93C';cx.lineWidth=2;cx.strokeRect(a-3,b-3,Math.max(3,mc.w*sc)+6,Math.max(3,mc.h*sc)+6)}});
 REST.forEach(r=>{const [a,b]=P(r.x,r.y);cx.fillStyle='rgba(63,169,245,.6)';cx.beginPath();cx.arc(a,b,Math.max(3.5,r.r*sc),0,7);cx.fill();cx.strokeStyle='#8FD3FF';cx.lineWidth=1;cx.stroke()});
 S.p.forEach(p=>{if(p.id===myId)return;const d=disp[p.id];if(!d)return;const [a,b]=P(d.x,d.y);cx.fillStyle=p.c;cx.beginPath();cx.arc(a,b,2.5,0,7);cx.fill()});
 {const [a,b]=P(S.sf[0],S.sf[1]);cx.fillStyle='#3DAE5A';cx.fillRect(a-2,b-2,4,4)}
@@ -523,11 +534,12 @@ MACH.forEach(mc=>{const u=useSpot(mc);if(SH.floorOf(mc.x)!==myF||dist(u.x,u.y,ME
 lab('Big Gaz',DESK.x+DESK.w/2+40,DESK.y+DESK.h+32,2.75,'#ff8a80',11);if(S.sf)lab('Staff',S.sf[0],S.sf[1],2.35,'#9BE89F',11);
 S.p.forEach(p=>{const mine=p.id===myId;const pos=mine?ME:disp[p.id];if(!pos)return;let x=pos.x,y=pos.y,h=2.2;if(p.on!==null){const mc=MACH[p.on];x=mc.x+mc.w/2;y=mc.y+mc.h/2;h=2.05}
 lab(mine?'You':p.n,x,y,h,mine?'#fff':p.c,11);const tag=p.em?'"'+p.em+'"':p.lo?'Staff lecture':p.st?'Ouch':(p.lm&&p.on===null)?'Limping':'';if(tag)lab(tag,x,y,h+0.5,p.em?'#FFE29A':'#ffb070',12)});
-if(guide&&!(SH.floorOf(guide.x)===1&&!showUp)){const g=guide,s=P(g.x,g.y,(g.rest?1.5:2.9)+Math.sin(TT*6)*0.12);
-if(s){gArrow(s[0],s[1],g.c,1.3);label(g.t,s[0],s[1]-50,g.c,13,true)}
+if(S.gm>=0&&S.st==='playing'){const mc=MACH[S.gm];lab('GOLD: '+C.goldReps+' reps = +'+C.goldBonus,mc.x+mc.w/2,mc.y+mc.h/2,3.75,'#FFC93C',12)}
+if(guide&&!(SH.floorOf(guide.x)===1&&!showUp)){const g=guide,s=P(g.x,g.y,(g.rest?1.5:g.gold?4.3:2.9)+Math.sin(TT*6)*0.12);
+if(s&&!g.gold){gArrow(s[0],s[1],g.c,1.3);label(g.t,s[0],s[1]-50,g.c,13,true)}
 const a=P(ME.x,ME.y,0.15),b=P(g.x,g.y,0.15);if(a&&b&&dist(ME.x,ME.y,g.x,g.y)>150){const ang=Math.atan2(b[1]-a[1],b[0]-a[0]);gPtr(a[0]+Math.cos(ang)*52,a[1]+Math.sin(ang)*52,ang,g.c,1.4);label(g.sh,a[0]+Math.cos(ang)*100,a[1]+Math.sin(ang)*82,g.c,11,true)}}
 pops.forEach(p=>{cx.globalAlpha=Math.max(0,Math.min(1,p.a));const s=P(p.x,p.y,1.8+(1.6-p.a)*0.9);if(s)label(p.t,s[0],s[1],p.c,13,true);cx.globalAlpha=1});
-if(S.st==='playing'&&S.tm<30){cx.fillStyle='rgba(5,6,10,'+((30-S.tm)/30*.3)+')';cx.fillRect(0,0,VW,VH)}}
+if(S.st==='playing'&&S.tm<20){cx.fillStyle='rgba(5,6,10,'+((20-S.tm)/20*.3)+')';cx.fillRect(0,0,VW,VH)}}
 function draw(){const m=me();
 if(VIEW3D&&window.V3D&&V3D.ready){cx.setTransform(DPR,0,0,DPR,0,0);cx.clearRect(0,0,VW,VH);if(!S)return;
 V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT,dt:DT});drawLabels3D(m);}else{

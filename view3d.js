@@ -4,7 +4,7 @@
   let T, G, SH, renderer, scene, camera, up, glcv, hemi, key;
   let machines = [], chars = {}, rings = {}, staff, gaz, W = 800, H = 500;
   const camPos = { x: 0, y: 12, z: 10 }, camTgt = { x: 0, y: 1, z: 0 };
-  let upVisible = true, first = true, restMats = [], cone = null, puffTex = null;
+  let upVisible = true, first = true, restMats = [], cone = null, puffTex = null, goldFx = null;
   const puffs = [], pool = [];
   function puff(pos, vel, o) {
     let s = pool.pop();
@@ -83,6 +83,16 @@
     gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
     gx.fillStyle = gr; gx.fillRect(0, 0, 64, 64);
     puffTex = new T.CanvasTexture(cv);
+    // golden machine: a column of light, a spinning gold coin and a ring on the floor
+    goldFx = new T.Group(); goldFx.visible = false; scene.add(goldFx);
+    const beam = new T.Mesh(new T.CylinderGeometry(0.75, 1.0, 6, 24, 1, true), new T.MeshBasicMaterial({ color: '#FFC93C', transparent: true, opacity: 0.16, depthWrite: false, side: T.DoubleSide, blending: T.AdditiveBlending }));
+    beam.position.y = 3; goldFx.add(beam);
+    const coin = new T.Group(); coin.position.y = 3.2; goldFx.add(coin); goldFx.userData.coin = coin;
+    const goldM = new T.MeshStandardMaterial({ color: '#FFC93C', metalness: 0.6, roughness: 0.25, emissive: '#7A5200', emissiveIntensity: 0.6 });
+    const cmesh = new T.Mesh(new T.CylinderGeometry(0.34, 0.34, 0.07, 32), goldM); cmesh.rotation.x = Math.PI / 2; coin.add(cmesh);
+    const rim = new T.Mesh(new T.TorusGeometry(0.34, 0.035, 8, 32), goldM); coin.add(rim);
+    const gring = new T.Mesh(new T.RingGeometry(1.15, 1.35, 48), new T.MeshBasicMaterial({ color: '#FFC93C', transparent: true, opacity: 0.85, depthWrite: false, side: T.DoubleSide }));
+    gring.rotation.x = -Math.PI / 2; gring.position.y = 0.05; goldFx.add(gring); goldFx.userData.ring = gring;
     out.V3D.ready = true;
     resize(W, H);
   }
@@ -183,6 +193,17 @@
       }
     });
     stepPuffs(dt);
+    // golden machine marker
+    if (goldFx) {
+      const gi = S.st === 'playing' && S.gm >= 0 ? S.gm : -1;
+      goldFx.visible = gi >= 0 && (SH.MACH[gi].x < 1900 || upVisible);
+      if (goldFx.visible) {
+        const p = machines[gi].b.g.getWorldPosition(V());
+        goldFx.position.copy(p);
+        goldFx.userData.coin.rotation.y = TT * 2.2; goldFx.userData.coin.position.y = 3.2 + Math.sin(TT * 3) * 0.12;
+        const k = 1 + 0.08 * Math.sin(TT * 5); goldFx.userData.ring.scale.set(k, k, k);
+      }
+    }
     // staff patrol
     if (S.sf) { const a = an('staff'), [x, y, z] = G.map3(S.sf[0], S.sf[1]), d = S.sf[2] || 0; staff.group.position.set(x, y, z); staff.group.rotation.y = -(d + Math.PI / 2); staff.pose(G.POSE.stand(a.ph, Math.min(1, a.spd)));
       const vis = S.sf[0] < 1900 || upVisible; staff.group.visible = vis; cone.visible = vis; cone.position.set(x, y, z); cone.rotation.y = -d; }
@@ -190,7 +211,7 @@
     const tired = me ? Math.min(1, Math.max(0, (me.ft - 40) / 50)) : 0;
     restMats.forEach((m, i) => { if (i % 2 === 0) m.opacity = 0.28 + tired * (0.22 + 0.15 * Math.sin(TT * 5)); });
     // closing time: the lights go down
-    const dim = S.st === 'playing' && S.tm < 30 ? (30 - S.tm) / 30 : 0;
+    const dim = S.st === 'playing' && S.tm < 20 ? (20 - S.tm) / 20 : 0;
     hemi.intensity = 0.75 - dim * 0.35; key.intensity = 0.85 - dim * 0.4;
     // follow camera, angled like Overcooked
     const [tx, ty, tz] = G.map3(ME.x, ME.y);

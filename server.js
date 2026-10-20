@@ -57,7 +57,7 @@ const BOT_NAMES = ['Dummy Dave', 'Dummy Shaz', 'Dummy Bazza'];
 
 function makeRoom(code) {
   const r = {
-    code, players: new Map(), st: 'lobby', t: 0, prog: S.PROGRAMS[0],
+    code, players: new Map(), st: 'lobby', t: 0, prog: S.PROGRAMS[0], gold: -1,
     m: S.MACH.map(() => ({ user: null, claim: null })),
     staff: { x: S.STAFF_PATH[0][0], y: S.STAFF_PATH[0][1], i: 1, dir: 0, pause: 0 }, asks: [], ev: [], host: null, res: null,
     firstDone: false, warned: false
@@ -66,12 +66,12 @@ function makeRoom(code) {
   return r;
 }
 
-function freshStats() { return { shoves: 0, shoved: 0, steals: 0, perfects: 0, reps: 0, pulls: 0, strikes: 0, wipes: 0, misses: 0 }; }
+function freshStats() { return { shoves: 0, shoved: 0, steals: 0, perfects: 0, reps: 0, pulls: 0, strikes: 0, wipes: 0, misses: 0, golds: 0 }; }
 function resetPlayer(p, i) {
   Object.assign(p, {
     x: S.SPAWN(i)[0], y: S.SPAWN(i)[1], on: null, stairCd: 0, posIgnore: 0, fat: 0, combo: 0, miss: 0, stun: 0, kvx: 0, kvy: 0,
     shoveCd: 0, askCd: 0, towelCd: 0, limp: 0, sprintT: 0, moveT: 0, sprinting: false, idle: 0, heat: 0, strikes: 0, gains: 0, claim: null, lock: 0,
-    lastRep: 0, lastPos: Date.now(), done: false, em: '', emT: 0, emCd: 0,
+    lastRep: 0, lastPos: Date.now(), done: false, goldN: 0, em: '', emT: 0, emCd: 0,
     grp: Object.fromEntries(S.GK.map(k => [k, { p: 0, pulled: false }])),
     stats: freshStats(), bt: {}
   });
@@ -103,7 +103,7 @@ function say(r, p, s, c) { ev(r, { k: 'pop', to: p.id, x: Math.round(p.x), y: Ma
 function stepOff(r, p) {
   if (p.on === null) return;
   const m = S.MACH[p.on];
-  r.m[p.on].user = null; p.on = null;
+  r.m[p.on].user = null; p.on = null; p.goldN = 0;
   const u = useSpot(m); p.x = u.x; p.y = u.y; p.tp++;
 }
 function clearClaim(r, p) {
@@ -140,6 +140,17 @@ function strike(r, p, why) {
   ev(r, { k: 'pop', x: Math.round(p.x), y: Math.round(p.y - 34), s: p.n + ' is getting a staff lecture', c: '#ff8a80' });
 }
 function programDone(r, p) { return r.prog.every(k => p.grp[k].p >= 100); }
+// The golden machine: once someone finishes the program, one machine glows gold. Finished players bank
+// C.goldBonus for C.goldReps reps on it (in one visit), then it jumps somewhere else.
+function moveGold(r) {
+  const from = r.gold >= 0 ? S.MACH[r.gold] : null;
+  const ok = S.MACH.map((m, i) => i).filter(i => i !== r.gold && r.m[i].user === null && !r.m[i].claim);
+  const far = from ? ok.filter(i => dist(S.MACH[i].x, S.MACH[i].y, from.x, from.y) > 600) : ok;
+  const pool = far.length ? far : ok.length ? ok : S.MACH.map((m, i) => i);
+  r.gold = pool[Math.floor(Math.random() * pool.length)];
+  for (const q of r.players.values()) q.goldN = 0;
+  ev(r, { k: 'gold', m: r.gold });
+}
 
 function act(r, p, a) {
   const isHost = p.id === r.host;
@@ -254,11 +265,23 @@ function rep(r, p, q) {
   const perfect = q === 'perfect';
   p.combo++; p.miss = 0; p.stats.reps++; if (perfect) p.stats.perfects++;
   const g = p.grp[m.g], before = g.p;
+  if (p.done && p.on === r.gold) {
+    // golden machine: full gains, no muscle progress (so no pulled muscles), counts toward the bonus
+    const gain = Math.round(10 * (1 + Math.min(p.combo, 10) * 0.1) * (perfect ? 1.5 : 1));
+    p.gains += gain; p.goldN++;
+    ev(r, { k: 'pop', to: p.id, x: Math.round(p.x), y: Math.round(p.y - 46), s: 'Gold ' + p.goldN + '/' + C.goldReps + '  +' + gain, c: '#FFC93C' });
+    if (p.goldN >= C.goldReps) {
+      p.gains += C.goldBonus; p.stats.golds++;
+      ev(r, { k: 'ban', s: p.n + ' banked the golden machine! +' + C.goldBonus, c: '#FFC93C' });
+      moveGold(r);
+    }
+  } else {
   g.p += C.groupPerRep * (perfect ? 1.5 : 1);
   const onProg = r.prog.includes(m.g);
   const gain = Math.max(1, Math.round(10 * (1 + Math.min(p.combo, 10) * 0.1) * (perfect ? 1.5 : 1) * (before >= 100 ? 0.3 : 1) * (onProg ? 1 : C.offProgramGains)));
   p.gains += gain;
   ev(r, { k: 'pop', to: p.id, x: Math.round(p.x), y: Math.round(p.y - 46), s: (perfect ? 'Perfect +' : '+') + gain, c: perfect ? '#FFC93C' : '#9BE89F' });
+  }
   if (before < 100 && g.p >= 100) {
     ev(r, { k: 'ban', to: p.id, s: S.GROUPS[m.g].n + ' done!', c: '#9BE89F' });
     if (!p.done && programDone(r, p)) {
@@ -267,6 +290,7 @@ function rep(r, p, q) {
       p.gains += bonus;
       if (!r.firstDone) { r.firstDone = true; ev(r, { k: 'ban', s: p.n + ' finished the program first! +' + bonus, c: '#FFC93C' }); }
       else ev(r, { k: 'ban', to: p.id, s: 'Program done! +' + bonus, c: '#9BE89F' });
+      if (r.gold < 0) moveGold(r);
     }
   }
   const warnAt = 100 + (C.overdoAt - 100) * 0.4;
@@ -338,7 +362,8 @@ function botThink(r, p, dt) {
     if (b.wiper === undefined) b.wiper = Math.random() < 0.5; // half the dummies prefer wiping down
     if (b.wiper && p.fat > 70 && p.towelCd <= 0 && Math.random() < dt * 3) act(r, p, 'wipe');
     if (p.fat > 50 && p.claim === null && p.towelCd <= 0 && !b.wiper && Math.random() < dt * 2) act(r, p, 'towel');
-    if (p.fat > 78 || (g.p >= 100 && Math.random() < dt * 1.5)) act(r, p, 'use');
+    const onGold = p.done && p.on === r.gold;
+    if (p.fat > 78 || (!onGold && g.p >= 100 && Math.random() < dt * 1.5)) act(r, p, 'use');
     return;
   }
   // pick a goal
@@ -351,6 +376,7 @@ function botThink(r, p, dt) {
       b.goal = 'rest'; b.path = route(p.x, p.y, best.x + rnd(-20, 20), best.y + rnd(-20, 20));
     } else {
       let target = p.claim;
+      if (p.done && r.gold >= 0 && p.fat < 20) target = r.gold;
       if (target === null) {
         const wants = S.MACH.map((m, i) => i).filter(i => {
           const m = S.MACH[i], g = p.grp[m.g];
@@ -394,7 +420,7 @@ function startRound(r) {
   r.st = 'countdown'; r.t = C.countdown; r.res = null;
   r.prog = S.PROGRAMS[Math.floor(Math.random() * S.PROGRAMS.length)];
   r.m.forEach(m => { m.user = null; m.claim = null; });
-  r.asks = []; r.firstDone = false; r.warned = false;
+  r.asks = []; r.firstDone = false; r.warned = false; r.gold = -1;
   r.staff = { x: S.STAFF_PATH[0][0], y: S.STAFF_PATH[0][1], i: 1, dir: 0, pause: 0 };
   let i = 0;
   for (const p of r.players.values()) resetPlayer(p, i++);
@@ -413,6 +439,7 @@ function endRound(r) {
   award('Most shoves', 'shoves', v => v + (v === 1 ? ' shove' : ' shoves'));
   award('Biggest thief', 'steals', v => v + (v === 1 ? ' machine nicked' : ' machines nicked'));
   award('Perfectionist', 'perfects', v => v + ' perfect reps');
+  award('Gold digger', 'golds', v => v + (v === 1 ? ' golden machine' : ' golden machines'));
   award('Punching bag', 'shoved', v => 'shoved ' + v + (v === 1 ? ' time' : ' times'));
   award('Pulled something', 'pulls', v => v + (v === 1 ? ' muscle' : ' muscles'));
   award("Staff's favourite", 'strikes', v => v + (v === 1 ? ' strike' : ' strikes'));
@@ -507,11 +534,11 @@ function snapshot(r) {
       id: p.id, n: p.n, c: p.c, b: p.bot ? 1 : 0, x: Math.round(p.x), y: Math.round(p.y), on: p.on,
       ft: Math.round(p.fat), lk: p.on !== null || p.stun > 0 || p.lock > 0 ? 1 : 0, st: p.stun > 0 ? 1 : 0, lo: p.lock > 0 ? 1 : 0,
       tp: p.tp, lm: p.limp > 0 ? 1 : 0, sp: p.sprinting ? 1 : 0, g: p.gains, gr: S.GK.map(k => Math.round(p.grp[k].p)), pl: S.GK.map(k => (p.grp[k].pulled ? 1 : 0)),
-      hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd), rc: p.stats.reps, mc: p.stats.misses
+      hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd), gn: p.goldN, rc: p.stats.reps, mc: p.stats.misses
     });
   }
   const msg = JSON.stringify({
-    t: 'snap', st: r.st, tm: Math.round(r.t * 10) / 10, pg: r.prog, host: r.host, code: r.code,
+    t: 'snap', st: r.st, tm: Math.round(r.t * 10) / 10, pg: r.prog, gm: r.st === 'playing' ? r.gold : -1, host: r.host, code: r.code,
     sf: [Math.round(r.staff.x), Math.round(r.staff.y), Math.round(r.staff.dir * 100) / 100],
     m: r.m.map(m => [m.user, m.claim ? m.claim.owner : null, m.claim ? Math.round(m.claim.t * 10) / 10 : 0]),
     p: P, ak: r.asks.map(q => ({ by: q.by, ow: q.owner, m: q.m, t: Math.round(q.t * 10) / 10 })),
