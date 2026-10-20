@@ -61,7 +61,7 @@ On the join screen you can pick **2D view** or **3D view (new)**. Both play in t
 so mates can mix. The 3D view needs a bit more phone power; switch to 2D if it lags.
 
 Phone: drag on the left side to move, buttons on the right.
-PC: WASD or arrows, Space rep, E use or step off, Q throw towel, C wipe down, F shove, R "Yep, using it", 1–4 quick chat.
+PC: WASD or arrows (hold Shift to sprint: faster, but burns fatigue), Space rep, E use or step off, Q throw towel, C wipe down, F shove, R "Yep, using it", 1–4 quick chat.
 
 Your towel has two uses: throw it to claim a machine, or wipe down to clear your fatigue instantly.
 Wiping puts the towel on a 20 second cooldown (`wipeCooldown` in `shared.js`), and if your towel
