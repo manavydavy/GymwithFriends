@@ -1,4 +1,4 @@
-// Gym Colonisers online server.
+// Gym with Friends online server.
 // Serves the game page and runs every room's game loop. The server is the
 // single source of truth for machines, towels, gains, strikes and the clock.
 // Each browser moves its own player and runs its own rep timing bar, then tells
@@ -320,7 +320,7 @@ function movePlayer(r, p, x, y) {
   // The browser took the stairs a moment before the server did: follow it if it's next to a staircase
   if (S.floorOf(x) !== S.floorOf(p.x)) {
     const st = S.STAIRS.find(t => t.floor === S.floorOf(x) && dist(p.x, p.y, t.x + t.w / 2, t.y + t.h / 2) < 170);
-    if (st && p.stairCd <= 0) { p.x = st.to[0]; p.y = st.to[1]; p.stairCd = 0.8; p.posIgnore = 0.2; say(r, p, st.floor ? 'Upstairs: chest floor' : 'Ground floor', '#BFE8FF'); }
+    if (st && p.stairCd <= 0) { [p.x, p.y] = S.stairDest(st, p.x); p.stairCd = 0.8; p.posIgnore = 0.2; say(r, p, st.floor ? 'Upstairs: chest floor' : 'Ground floor', '#BFE8FF'); }
     return;
   }
   // Trust the browser's movement, but not faster than walking speed.
@@ -474,7 +474,7 @@ function tick(r, dt) {
     if (p.on === null && p.stun <= 0 && p.lock <= 0 && p.stairCd <= 0) {
       const st = S.stairAt(p.x, p.y);
       if (st) {
-        p.x = st.to[0]; p.y = st.to[1]; p.tp++; p.stairCd = 0.8; p.posIgnore = 0.35;
+        [p.x, p.y] = S.stairDest(st, p.x); p.tp++; p.stairCd = 0.8; p.posIgnore = 0.35;
         say(r, p, st.floor ? 'Upstairs: chest floor' : 'Ground floor', '#BFE8FF');
         if (p.bot) trimPath(p);
       }
@@ -583,4 +583,4 @@ setInterval(() => {
   for (const r of rooms.values()) { tick(r, dt); if (rooms.has(r.code)) snapshot(r); }
 }, TICK);
 
-server.listen(PORT, () => console.log('Gym Colonisers running on port ' + PORT));
+server.listen(PORT, () => console.log('Gym with Friends running on port ' + PORT));

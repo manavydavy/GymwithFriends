@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Gym Colonisers online</title>
+<title>Gym with Friends</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;600;800&display=swap">
 <style>
@@ -103,7 +103,7 @@ html.touch .stage{border-radius:0;border:0}
 </head>
 <body>
 <main>
-<header><h1>Gym Colonisers</h1><span class="ver">v0.3: online, mates vs mates</span></header>
+<header><h1>Gym with Friends</h1><span class="ver">v0.3: online, mates vs mates</span></header>
 <div class="stage" id="stage">
 <canvas id="game" aria-label="Gym floor. Most gains at closing wins."></canvas>
 <div class="touchui" id="touch" hidden>
@@ -186,6 +186,11 @@ if(mine){cx.strokeStyle='rgba(255,255,255,.8)';cx.lineWidth=1.5;rr(x-5,y-5,w+10,
 function sweat(x,y,fat){if(fat<=70)return;cx.fillStyle='#8FD3FF';for(let i=0;i<2;i++){const q=TT*3+i*3.1;cx.beginPath();cx.arc(x+Math.cos(q)*19,y+Math.sin(q)*17+((TT*40+i*20)%10),2.4,0,7);cx.fill()}}
 
 function hint(k,t){if(seen[k])return;seen[k]=1;hintMsg={t,time:7}}
+// Changing floors: move the player, but keep where they were drawn so 3D can glide the last metre and 2D can fade
+let FADE=0;
+function floorJump(o,x,y){const a=G3w(o.x,o.y),b=G3w(x,y);o.vo={x:a[0]-b[0],y:a[1]-b[1],z:a[2]-b[2],t:.35};o.x=x;o.y=y;if(o===ME&&!(VIEW3D&&window.V3D&&V3D.ready))FADE=.35}
+function G3w(x,y){const f=x>=1900,X=((f?x-2000:x)-900)*.02,Z=(y-550)*.02;let h=0;if(f)h=3.6;else if(x<200&&y>520&&y<1000)h=y<=570?3.6:(1000-y)/430*3.6;return [X,h,Z]}
+function voNow(o){if(!o||!o.vo||o.vo.t<=0)return null;const k=Math.pow(o.vo.t/.35,2);return {x:o.vo.x*k,y:o.vo.y*k,z:o.vo.z*k}}
 const BQ=[];function showBan(t,c){if(banner&&banner.time>1.2){if(BQ.length<3)BQ.push({t,c});return}banner={t,c,time:3}}
 function star(x,y,r,c,rot){cx.save();cx.translate(x,y);cx.rotate(rot||0);cx.beginPath();for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2,rr=i%2?r*.45:r;cx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}cx.closePath();cx.fillStyle=c;cx.fill();cx.strokeStyle='rgba(0,0,0,.5)';cx.lineWidth=r*.12;cx.stroke();cx.restore()}
 // First-time guides (remembered on this device): arrow to a program machine, then to a rest area when filling up. ?tut=1 shows them again.
@@ -209,7 +214,7 @@ else showJoin("Couldn't reach the server. Check your connection and try again.")
 }
 
 function onSnap(d){S=d;const m=me();
-if(m){if(m.tp!==ME.tp){ME.x=m.x;ME.y=m.y;ME.tp=m.tp}
+if(m){if(m.tp!==ME.tp){if(SH.floorOf(m.x)!==SH.floorOf(ME.x))floorJump(ME,m.x,m.y);else{ME.x=m.x;ME.y=m.y}ME.tp=m.tp}
 if(m.on!==ME.on){if(m.on!==null){ME.phase=-Math.PI/2;ME.zc=rnd(.3,.7);hint('rep','Tap Rep when the white marker is in the green. Gold is a perfect rep.')}ME.on=m.on}}
 d.ev.forEach(e=>{if(e.to&&e.to!==myId)return;
 if(e.k==='pop')pops.push({x:e.x,y:e.y,t:e.s,c:e.c,a:1.6});
@@ -230,7 +235,7 @@ function hideCard(){if(cardKey!==''){cardKey='';$('ov').hidden=true}}
 function showJoin(err){joined=false;myId=null;S=null;
 let name='';try{name=localStorage.getItem('gc_name')||''}catch(e){}
 const q=new URLSearchParams(location.search).get('room')||'';
-setCard('<h2>Gym Colonisers</h2><p>Race your mates for the most gains before the gym closes. Sabotage is encouraged.</p>'+
+setCard('<h2>Gym with Friends</h2><p>Race your mates for the most gains before the gym closes. Sabotage is encouraged.</p>'+
 '<label>Your name<input id="nameIn" maxlength="14" autocomplete="nickname" value="'+esc(name)+'"></label>'+
 '<label>Room code<input id="roomIn" class="code" maxlength="6" autocomplete="off" placeholder="Leave blank to make a new room" value="'+esc(q.toUpperCase())+'"></label>'+
 '<div class="viewpick" role="group" aria-label="How the gym looks"><button type="button" class="ghost'+(VIEW3D?'':' sel')+'" id="v2">2D view</button><button type="button" class="ghost'+(VIEW3D?' sel':'')+'" id="v3">3D view (new)</button></div>'+
@@ -252,7 +257,7 @@ btn.onclick=go;[nameIn,roomIn].forEach(i=>i.addEventListener('keydown',e=>{if(e.
 function inviteUrl(){return location.origin+location.pathname+'?room='+S.code}
 function inviteBox(){return '<div class="invite"><code>'+esc(inviteUrl())+'</code><button class="ghost" type="button" id="copyBtn">'+(navigator.share&&TOUCH?'Share':'Copy link')+'</button></div>'}
 function wireInvite(){const b=$('copyBtn');if(!b)return;b.onclick=()=>{const url=inviteUrl();
-if(navigator.share&&TOUCH){navigator.share({title:'Gym Colonisers',text:'Get in the gym. Room '+S.code,url}).catch(()=>{});return}
+if(navigator.share&&TOUCH){navigator.share({title:'Gym with Friends',text:'Get in the gym. Room '+S.code,url}).catch(()=>{});return}
 (navigator.clipboard?navigator.clipboard.writeText(url):Promise.reject()).then(()=>{b.textContent='Copied'}).catch(()=>{b.textContent='Copy failed';prompt('Copy this link',url)})}}
 function plist(list,withScore){return '<ul class="plist">'+list.map((p,i)=>'<li>'+(withScore?'<span class="place">'+(i+1)+'</span>':'')+'<span class="dot" style="background:'+p.c+'"></span><span>'+esc(p.n)+'</span>'+(p.id===myId?'<span class="tag">You</span>':'')+(p.id===S.host?'<span class="tag">Host</span>':'')+(p.b?'<span class="tag">Dummy</span>':'')+(withScore?'<span class="score">'+p.g+(p.dn?' ✓':'')+'</span>':'')+'</li>').join('')+'</ul>'}
 
@@ -311,7 +316,7 @@ if(banner){banner.time-=dt;if(banner.time<=0)banner=null}
 if(!banner&&BQ.length)banner=Object.assign(BQ.shift(),{time:3});
 if(hintMsg){hintMsg.time-=dt;if(hintMsg.time<=0)hintMsg=null}
 if(!S)return;
-for(const p of S.p){if(p.id===myId)continue;const d=disp[p.id];if(!d)continue;const k=Math.min(1,dt*12);d.x+=(p.x-d.x)*k;d.y+=(p.y-d.y)*k;
+for(const p of S.p){if(p.id===myId)continue;const d=disp[p.id];if(!d)continue;if(SH.floorOf(p.x)!==SH.floorOf(d.x))floorJump(d,p.x,p.y);if(d.vo)d.vo.t-=dt;const k=Math.min(1,dt*12);d.x+=(p.x-d.x)*k;d.y+=(p.y-d.y)*k;
 if(!p.on&&p.ft>2&&inRest(d.x,d.y)&&Math.random()<dt*14)parts.push({x:d.x+rnd(-7,7),y:d.y-10,vx:rnd(-8,8),vy:rnd(-40,-25),a:.8})}
 for(const p of S.p){const pos=p.id===myId?ME:disp[p.id];if(pos)animate(p.id,pos.x,pos.y,dt,!!p.st)}
 if(S.sf)animate('staff',S.sf[0],S.sf[1],dt,false);
@@ -322,6 +327,7 @@ for(const p of S.p){const pos=p.on!==null?{x:MACH[p.on].x+MACH[p.on].w/2,y:MACH[
 if(p.ft>=95)for(let n=Math.floor(dt*40+Math.random());n>0;n--){const k=Math.random()<.5?-1:1;steam.push({x:pos.x+k*12,y:pos.y-6,vx:k*rnd(45,75),vy:rnd(-35,-15),a:1,r:rnd(4,6)})}
 const spr=p.id===myId?ME.spr:p.sp;if(spr&&p.on===null&&Math.random()<dt*26)dust.push({x:pos.x+rnd(-6,6),y:pos.y+8,vx:rnd(-15,15),vy:rnd(-8,4),a:.9})}
 const m=me();if(!m)return;
+if(ME.vo)ME.vo.t-=dt;FADE=Math.max(0,FADE-dt);
 ME.cd=Math.max(0,ME.cd-dt);
 ME.spr=false;
 if(m.lk){const k=Math.min(1,dt*15);ME.x+=(m.x-ME.x)*k;ME.y+=(m.y-ME.y)*k}
@@ -330,7 +336,7 @@ if(l>1){vx/=l;vy/=l}
 if(SHOULDER()&&l>0){const f=ME.camYaw,fx=Math.cos(f),fy=Math.sin(f),nx=fx*(-vy)-fy*vx,ny=fy*(-vy)+fx*vx;vx=nx;vy=ny;
 const hd=Math.atan2(vy,vx),dd=SH.angDiff(hd,ME.camYaw);if(l>.3&&Math.abs(dd)<1.75)ME.camYaw+=dd*Math.min(1,dt*1.5*Math.min(1,l))}
 ME.spr=(SPR.key||SPR.touch)&&l>.2&&!m.lm&&m.ft<100;const sp=C.playerSpeed*(m.lm?.55:1)*(ME.spr?C.sprintMult:1);if(l){ME.x+=vx*sp*dt;ME.y+=vy*sp*dt}SH.collide(ME);
-ME.stairT=Math.max(0,(ME.stairT||0)-dt);{const st=ME.stairT<=0&&SH.stairAt(ME.x,ME.y);if(st){ME.x=st.to[0];ME.y=st.to[1];ME.stairT=.8;banner={t:st.floor?'Upstairs: chest floor':'Ground floor',c:'#BFE8FF',time:1.6}}}
+ME.stairT=Math.max(0,(ME.stairT||0)-dt);{const st=ME.stairT<=0&&SH.stairAt(ME.x,ME.y);if(st){const o=SH.stairDest(st,ME.x);floorJump(ME,o[0],o[1]);ME.stairT=.8}}
 const now=performance.now();if(now-ME.lastSend>50&&(Math.abs(ME.x-ME.sx)>.3||Math.abs(ME.y-ME.sy)>.3)){send({t:'pos',x:Math.round(ME.x*10)/10,y:Math.round(ME.y*10)/10,s:ME.spr?1:0});ME.lastSend=now;ME.sx=ME.x;ME.sy=ME.y}}
 if(m.on!==null)ME.phase+=dt*C.markerSpeed*MACH[m.on].spd;
 const resting=m.on===null&&inRest(ME.x,ME.y);
@@ -574,12 +580,12 @@ pops.forEach(p=>{cx.globalAlpha=Math.max(0,Math.min(1,p.a));const s=P(p.x,p.y,1.
 if(S.st==='playing'&&S.tm<20){cx.fillStyle='rgba(5,6,10,'+((20-S.tm)/20*.3)+')';cx.fillRect(0,0,VW,VH)}}
 function draw(){const m=me();
 if(VIEW3D&&window.V3D&&V3D.ready){cx.setTransform(DPR,0,0,DPR,0,0);cx.clearRect(0,0,VW,VH);if(!S)return;
-V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT,dt:DT,GA,cam:SHOULDER()?{yaw:ME.camYaw}:null});drawLabels3D(m);}else{
+V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT,dt:DT,GA,vo:voNow,cam:SHOULDER()?{yaw:ME.camYaw}:null});drawLabels3D(m);}else{
 const vw=VW/Z,vh=VH/Z,fl=SH.FLOORS[SH.floorOf(ME.x)];cam.x=fl.w<=vw?fl.x+(fl.w-vw)/2:Math.max(fl.x,Math.min(fl.x+fl.w-vw,ME.x-vw/2));const padB=TOUCH?vh*0.32:40;cam.y=fl.h+padB<=vh?fl.y+(fl.h-vh)/2:Math.max(-40,Math.min(fl.y+fl.h-vh+padB,ME.y-vh/2));
 cx.setTransform(DPR,0,0,DPR,0,0);cx.fillStyle='#2B303A';cx.fillRect(0,0,VW,VH);
 if(!S)return;
 cx.setTransform(DPR*Z,0,0,DPR*Z,-cam.x*DPR*Z,-cam.y*DPR*Z);drawWorld(m);}
-cx.setTransform(DPR,0,0,DPR,0,0);if(m&&GA&&S.st==='playing')goldEdge();if(m&&(S.st==='playing'||S.st==='countdown'))drawHUD(m);
+cx.setTransform(DPR,0,0,DPR,0,0);if(FADE>0){cx.fillStyle='rgba(12,13,16,'+Math.min(1,FADE/.35)+')';cx.fillRect(0,0,VW,VH)}if(m&&GA&&S.st==='playing')goldEdge();if(m&&(S.st==='playing'||S.st==='countdown'))drawHUD(m);
 if(S.st==='countdown'){const n=Math.ceil(S.tm);cx.fillStyle='rgba(15,17,21,.55)';cx.fillRect(0,0,VW,VH);
 cx.textAlign='center';cx.textBaseline='middle';cx.fillStyle='#fff';cx.font='800 '+(VW<600?16:20)+'px Inter, sans-serif';cx.fillText('Today: '+S.pg.map(k=>GROUPS[k].n).join(' + '),VW/2,VH/2-90);
 const f=S.tm-Math.floor(S.tm);cx.font='400 '+Math.round(110+30*f)+'px Bungee, Impact, sans-serif';cx.fillStyle='#FFC93C';cx.fillText(n>0?String(n):'GO',VW/2,VH/2);

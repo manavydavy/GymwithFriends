@@ -103,8 +103,10 @@
   ];
   // Walking into a trigger moves you between floors
   const STAIRS = [
-    { x: 0, y: 520, w: 200, h: 50, to: [2100, 468], floor: 1, n: 'Up to the chest floor' },
-    { x: 2000, y: 498, w: 200, h: 22, to: [100, 615], floor: 0, n: 'Back downstairs' }
+    // The stairs meet the edge of the mezzanine: step over the line and you carry on in the same column,
+    // about a metre further on, so the 3D view barely moves.
+    { x: 0, y: 520, w: 200, h: 24, to: [2100, 486], dx: 2000, floor: 1, n: 'Up to the chest floor' },
+    { x: 2000, y: 496, w: 200, h: 24, to: [100, 552], dx: -2000, floor: 0, n: 'Back downstairs' }
   ];
   const TREADS = [0, 1, 2].map(i => ({ x: 2260 + i * 110, y: 300, w: 80, h: 120 }));
   const DESK = { x: 760, y: 960, w: 240, h: 60 };
@@ -143,6 +145,7 @@
   const inRest = (x, y) => REST.some(r => dist(x, y, r.x, r.y) < r.r);
   const inRect = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   const stairAt = (x, y) => STAIRS.find(s => inRect(x, y, s));
+  const stairDest = (s, x) => [Math.max(s.to[0] - 85, Math.min(s.to[0] + 85, x + s.dx)), s.to[1]];
   // Shortest route through the walking graph (breadth-first). Returns a list of [x, y] points.
   function route(x, y, tx, ty) {
     const za = zoneOf(x, y), zb = zoneOf(tx, ty);
@@ -201,5 +204,5 @@
     o.y = Math.max(72, Math.min(f.y + f.h - 15, o.y));
   }
 
-  Object.assign(out, { CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, TREADS, DESK, DECOR, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, route, zoneOf, floorOf, collide, stepStaff, staffSees, angDiff });
+  Object.assign(out, { CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, TREADS, DESK, DECOR, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, stairDest, route, zoneOf, floorOf, collide, stepStaff, staffSees, angDiff });
 })(typeof module !== 'undefined' ? module.exports : (window.SHARED = {}));

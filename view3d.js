@@ -195,7 +195,8 @@
     const myFloor = SH.floorOf(ME.x);
     let camMap = null;
     if (ctx.cam) { const portrait = H > W, b = boomLength(ME, ctx.cam.yaw, portrait ? 4.2 : 4.0); camMap = { b, x: ME.x - Math.cos(ctx.cam.yaw) * b / 0.02, y: ME.y - Math.sin(ctx.cam.yaw) * b / 0.02 }; }
-    upVisible = myFloor === 1 || !((ME.x < 760 && ME.y < 590) || (camMap && camMap.x < 760 && camMap.y < 590));
+    // the mezzanine hides while you're underneath it, but stays put while you're high up the stairs (no pop on arrival)
+    upVisible = myFloor === 1 || G.heightAt(ME.x, ME.y) > 2.4 || !((ME.x < 760 && ME.y < 590) || (camMap && camMap.x < 760 && camMap.y < 590));
     up.visible = upVisible;
     const seen = new Set();
     // machines and the people on them
@@ -224,7 +225,8 @@
       const c = charFor(p); seen.add(p.id);
       if (c.group.parent !== scene) { c.group.parent && c.group.parent.remove(c.group); scene.add(c.group); }
       const pos = p.id === myId ? ME : disp[p.id]; if (!pos) return;
-      const a = an(p.id), [x, y, z] = G.map3(pos.x, pos.y);
+      const a = an(p.id), w0 = G.map3(pos.x, pos.y), v = ctx.vo && ctx.vo(pos);
+      const x = w0[0] + (v ? v.x : 0), y = w0[1] + (v ? v.y : 0), z = w0[2] + (v ? v.z : 0);
       const shake = p.ft >= 90 ? Math.sin(TT * 55) * 0.02 : 0;
       c.group.position.set(x + shake, y, z);
       if (p.st) { c.group.rotation.set(-1.25, -a.ang + a.spin, 0); c.group.position.y = y + 0.35; c.pose(G.POSE.stand(0, 0)); }
@@ -291,7 +293,8 @@
     if (REAL) renderer.toneMappingExposure = 1.15 * (1 - dim * 0.45);
     else { hemi.intensity = 0.75 - dim * 0.35; key.intensity = 0.85 - dim * 0.4; }
     // follow camera, angled like Overcooked
-    const [tx, ty, tz] = G.map3(ME.x, ME.y);
+    const tw = G.map3(ME.x, ME.y), mv = ctx.vo && ctx.vo(ME);
+    const tx = tw[0] + (mv ? mv.x : 0), ty = tw[1] + (mv ? mv.y : 0), tz = tw[2] + (mv ? mv.z : 0);
     const portrait = H > W;
     if (ctx.cam) {
       // phones: behind and above your shoulder, wider lens, looking a little ahead of you

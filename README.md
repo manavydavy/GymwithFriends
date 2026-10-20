@@ -1,4 +1,4 @@
-# Gym Colonisers v0.3 (online)
+# Gym with Friends v0.3 (online)
 
 Browser multiplayer prototype. Mates race for the most gains before the gym closes.
 One small Node.js server runs the game and serves the page, so the whole thing is one link.
@@ -36,7 +36,7 @@ the current free-tier terms when you sign up.
    - Build command: `npm install`
    - Start command: `npm start`
    - Instance type: **Free**
-4. Click **Create Web Service** and wait for the log to say `Gym Colonisers running on port …`.
+4. Click **Create Web Service** and wait for the log to say `Gym with Friends running on port …`.
 5. Render gives you a link like `https://gym-colonisers-xxxx.onrender.com`. That's the game.
 
 Free servers go to sleep when nobody's playing. The first person to open the link after a
