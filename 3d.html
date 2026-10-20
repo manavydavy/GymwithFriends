@@ -123,6 +123,8 @@ Object.keys(btns).forEach(k=>btns[k].onclick=()=>mode(k));
 function showMachine(i){idx=(i+machines.length)%machines.length;const m=machines[idx];const p=m.b.g.getWorldPosition(new V3());
 up.visible=m.upstairs||!(p.x<G3.map3(700,0)[0]+0.5&&p.z<G3.map3(0,520)[2]);document.getElementById('name').textContent=m.def.name+(m.upstairs?' · upstairs':'');setOn(null);
 fly(new V3(p.x+2.4,p.y+(narrow()?3.6:2.9),p.z+(narrow()?5.2:4.2)),new V3(p.x,p.y+0.85,p.z))}
+// for screenshots: jump straight to a machine by name
+window.__jump=n=>{const i=machines.findIndex(m=>m.def.name===n);if(i<0)return false;showMachine(i);camera.position.copy(view.pos);controls.target.copy(view.tgt);flying=0;controls.update();return true};
 document.getElementById('next').onclick=()=>showMachine(idx+1);
 document.getElementById('prev').onclick=()=>showMachine(idx-1);
 document.getElementById('pause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Resume reps':'Pause reps';e.target.classList.toggle('on',paused)};
