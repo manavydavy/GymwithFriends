@@ -4,7 +4,15 @@
   let T, G, SH, renderer, scene, camera, up, glcv, hemi, key;
   let machines = [], chars = {}, rings = {}, staff, gaz, W = 800, H = 500;
   const camPos = { x: 0, y: 12, z: 10 }, camTgt = { x: 0, y: 1, z: 0 };
-  let shoulderOn = false;
+  let shoulderOn = false, prMax = 1, prCur = 1, fpsT = 0, fpsN = 0;
+  // Keep it smooth: drop the render resolution a notch when frames get slow, raise it again when there's headroom
+  function adapt(dt) {
+    fpsT += dt; fpsN++;
+    if (fpsT < 2) return;
+    const fps = fpsN / fpsT; fpsT = 0; fpsN = 0;
+    const next = fps < 40 ? Math.max(0.6, prCur - 0.15) : fps > 57 ? Math.min(prMax, prCur + 0.1) : prCur;
+    if (Math.abs(next - prCur) > 0.01) { prCur = next; renderer.setPixelRatio(prCur); resize(W, H); }
+  }
   // Over-the-shoulder camera (phones): how far back the camera can sit without ending up inside a wall
   function boomLength(ME, yaw, max) {
     const fl = SH.FLOORS[SH.floorOf(ME.x)], fx = Math.cos(yaw), fy = Math.sin(yaw);
@@ -20,7 +28,7 @@
   function puff(pos, vel, o) {
     let s = pool.pop();
     if (!s) { s = new T.Sprite(new T.SpriteMaterial({ map: puffTex, transparent: true, depthWrite: false })); s.renderOrder = 5; }
-    s.material.color.set(o.col); s.position.copy(pos); s.visible = true; scene.add(s);
+    setCol(s.material.color, o.col); s.position.copy(pos); s.visible = true; scene.add(s);
     puffs.push({ s, v: vel, life: o.life, max: o.life, a: o.a, r0: o.r0, r1: o.r1, drag: o.drag || 0, rise: o.rise || 0 });
   }
   function stepPuffs(dt) {
@@ -36,6 +44,34 @@
   }
   const V = () => new T.Vector3();
 
+  // Realistic look: proper colour pipeline (sRGB + filmic tone mapping) and reflections from a soft studio-style
+  // environment, so chrome, mirrors and plates actually shine. ?look=old turns it off.
+  const REAL = !(typeof location !== 'undefined' && /[?&]look=old/.test(location.search));
+  function linearize(root) {
+    if (!REAL) return;
+    root.traverse(o => {
+      const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+      ms.forEach(m => {
+        if (m.userData.lin) return; m.userData.lin = 1;
+        if (m.color) m.color.convertSRGBToLinear();
+        if (m.emissive) m.emissive.convertSRGBToLinear();
+        ['map', 'emissiveMap'].forEach(k => { if (m[k]) { m[k].encoding = T.sRGBEncoding; m[k].needsUpdate = true; } });
+        m.needsUpdate = true;
+      });
+    });
+  }
+  const setCol = (c, hex) => { c.set(hex); if (REAL) c.convertSRGBToLinear(); return c; };
+  function studio() {
+    // a big soft-lit room: grey walls, bright ceiling panels, a warm window strip
+    const e = new T.Scene(), g = new T.BoxGeometry(1, 1, 1);
+    const room = new T.Mesh(g, new T.MeshBasicMaterial({ color: new T.Color(0.32, 0.31, 0.3), side: T.BackSide })); room.scale.set(40, 12, 30); room.position.y = 5; e.add(room);
+    const floor = new T.Mesh(g, new T.MeshBasicMaterial({ color: new T.Color(0.08, 0.085, 0.1) })); floor.scale.set(40, 0.1, 30); floor.position.y = -0.95; e.add(floor);
+    const lamp = new T.MeshBasicMaterial({ color: new T.Color(5, 4.8, 4.4) });
+    for (let i = -2; i <= 2; i++) for (let j = -1; j <= 1; j++) { const l = new T.Mesh(g, lamp); l.scale.set(4, 0.1, 1.2); l.position.set(i * 8, 10.9, j * 8); e.add(l); }
+    const win = new T.Mesh(g, new T.MeshBasicMaterial({ color: new T.Color(3, 2.8, 2.4) })); win.scale.set(0.1, 3, 22); win.position.set(19.9, 6, 0); e.add(win);
+    return e;
+  }
+
   function load(src) {
     return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s); });
   }
@@ -49,8 +85,10 @@
     T = THREE; G = G3; SH = window.SHARED;
     renderer = new T.WebGLRenderer({ antialias: true });
     const phone = (() => { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } })();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, phone ? 1.25 : 1.5));
+    prMax = prCur = Math.min(window.devicePixelRatio || 1, phone ? 1.25 : 1.5);
+    renderer.setPixelRatio(prCur);
     renderer.shadowMap.enabled = !phone; renderer.shadowMap.type = T.PCFSoftShadowMap;
+    if (REAL) { renderer.outputEncoding = T.sRGBEncoding; renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15; }
     glcv = renderer.domElement;
     glcv.style.cssText = 'position:absolute;left:0;top:0;width:100%;display:block;touch-action:none;pointer-events:none';
     stage.insertBefore(glcv, hud);
@@ -111,6 +149,13 @@
     const gb = new T.Mesh(new T.ShapeGeometry(sh), new T.MeshBasicMaterial({ color: '#3A2A00', transparent: true, opacity: 0.6, depthWrite: false, side: T.DoubleSide }));
     [gb, ga].forEach((m, i) => { m.rotation.x = -Math.PI / 2; m.position.y = 0.06 + i * 0.01; m.renderOrder = 6 + i; goldArrow.add(m); });
     gb.scale.setScalar(1.15); gb.position.x = -0.04;
+    if (REAL) {
+      out.G3.LINEAR = true;
+      scene.background.convertSRGBToLinear(); scene.fog.color.convertSRGBToLinear();
+      const pm = new T.PMREMGenerator(renderer); scene.environment = pm.fromScene(studio(), 0.04).texture; pm.dispose();
+      hemi.intensity = 0.42; key.intensity = 1.25;
+      linearize(scene);
+    }
     out.V3D.ready = true;
     resize(W, H);
   }
@@ -130,6 +175,7 @@
       const track = new T.Mesh(new T.RingGeometry(0.52, 0.66, 48), new T.MeshBasicMaterial({ color: '#15171C', transparent: true, opacity: 0.55, depthWrite: false })); track.rotation.x = -Math.PI / 2;
       const ring = new T.Mesh(new T.RingGeometry(0.52, 0.66, 48, 1, Math.PI / 2, Math.PI * 2), new T.MeshBasicMaterial({ color: '#4CD964', transparent: true, depthWrite: false, side: T.DoubleSide })); ring.rotation.x = -Math.PI / 2;
       scene.add(track); scene.add(ring); rings[p.id] = { track, ring };
+      linearize(c.group); linearize(track); linearize(ring);
     }
     return c;
   }
@@ -166,7 +212,7 @@
         r.track.position.set(wp.x, wp.y + 0.04, wp.z); r.ring.position.set(wp.x, wp.y + 0.045, wp.z);
         const sc = Math.max(m.w, m.h) * 0.02 * 0.62 / 0.6 + 0.2; r.track.scale.setScalar(sc); r.ring.scale.setScalar(sc);
       } else b.set(0, false);
-      towel.visible = !!owner; if (owner) stripe.material.color.set(owner.c);
+      towel.visible = !!owner; if (owner) setCol(stripe.material.color, owner.c);
       const gi = SH.GK.indexOf(m.g);
       const target = me && S.st === 'playing' && S.pg.includes(m.g) && me.gr[gi] < 100 && !me.pl[gi] && !user;
       hl.visible = !!target; if (target) hl.children[0].material.opacity = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(TT * 4));
@@ -192,7 +238,7 @@
       const vis = chars[p.id] && chars[p.id].group.visible;
       r.track.visible = r.ring.visible = !!vis;
       r.ring.geometry.setDrawRange(0, Math.floor(Math.min(p.ft, 100) / 100 * 48) * 6);
-      r.ring.material.color.set(fatHue(p.ft));
+      setCol(r.ring.material.color, fatHue(p.ft));
       r.ring.material.opacity = p.ft >= 90 ? 0.45 + 0.55 * Math.abs(Math.sin(TT * 9)) : 1;
     });
     Object.keys(chars).forEach(id => { if (!seen.has(+id)) dropChar(+id); });
@@ -212,7 +258,7 @@
         puff(V().set(g.x + (Math.random() - 0.5) * 0.3, g.y + 0.08, g.z + (Math.random() - 0.5) * 0.3), V().set((Math.random() - 0.5) * 0.4, 0.35, (Math.random() - 0.5) * 0.4), { col: '#B8AD9C', life: 0.55, a: 0.55, r0: 0.12, r1: 0.4, drag: 0.3 });
       }
     });
-    stepPuffs(dt);
+    stepPuffs(dt); adapt(dt);
     if (goldArrow) {
       const g = ctx.GA;
       goldArrow.visible = !!g;
@@ -241,7 +287,8 @@
     restMats.forEach((m, i) => { if (i % 2 === 0) m.opacity = 0.28 + tired * (0.22 + 0.15 * Math.sin(TT * 5)); });
     // closing time: the lights go down
     const dim = S.st === 'playing' && S.tm < 20 ? (20 - S.tm) / 20 : 0;
-    hemi.intensity = 0.75 - dim * 0.35; key.intensity = 0.85 - dim * 0.4;
+    if (REAL) renderer.toneMappingExposure = 1.15 * (1 - dim * 0.45);
+    else { hemi.intensity = 0.75 - dim * 0.35; key.intensity = 0.85 - dim * 0.4; }
     // follow camera, angled like Overcooked
     const [tx, ty, tz] = G.map3(ME.x, ME.y);
     const portrait = H > W;

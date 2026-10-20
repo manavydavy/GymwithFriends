@@ -261,10 +261,10 @@
       // Fatigue 0..100: face goes red and puffs up
       setFat(f) {
         fat = f; const t = Math.max(0, Math.min(1, (f - 40) / 55));
-        faceM.color.set(o.skin).lerp(new T.Color('#E8402F'), t * 0.85);
+        faceM.color.set(o.skin).lerp(new T.Color('#E8402F'), t * 0.85); if (out.G3.LINEAR) faceM.color.convertSRGBToLinear();
         P.head.scale.setScalar(1 + t * 0.1);
       },
-      setColour(c) { shirtM.color.set(c); }
+      setColour(c) { shirtM.color.set(c); if (out.G3.LINEAR) shirtM.color.convertSRGBToLinear(); }
     };
     return api;
   }
@@ -750,16 +750,38 @@
   }
 
   // ---------- the gym room ----------
-  function floorTexture(w, d) {
-    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
-    const x = cv.getContext('2d');
-    x.fillStyle = '#3A3D46'; x.fillRect(0, 0, 256, 256);
-    for (let i = 0; i < 2600; i++) { x.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.12)'; x.fillRect(Math.random() * 256, Math.random() * 256, 2, 2); }
-    for (let i = 0; i < 110; i++) { x.fillStyle = ['#5E8FB0', '#B05E5E', '#C9A15A', '#7FB07F'][i % 4]; x.globalAlpha = 0.35; x.fillRect(Math.random() * 256, Math.random() * 256, 3, 2); }
-    x.globalAlpha = 1; x.strokeStyle = 'rgba(0,0,0,.45)'; x.lineWidth = 3; x.strokeRect(0, 0, 256, 256);
-    const t = new T.CanvasTexture(cv); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set((w || 36) / 1.5, (d || 22) / 1.5); t.anisotropy = 8;
-    return t;
+  // Rubber gym tiles: 2 x 2 one-metre tiles per texture, coloured flecks, seams, and a matching normal map
+  let floorCv = null;
+  function floorCanvases() {
+    if (floorCv) return floorCv;
+    const N = 512, T2 = N / 2, cv = document.createElement('canvas'), nv = document.createElement('canvas');
+    cv.width = cv.height = nv.width = nv.height = N;
+    const x = cv.getContext('2d'), n = nv.getContext('2d');
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    [[0, 0, 0], [1, 0, 6], [0, 1, -5], [1, 1, 3]].forEach(([i, j, v]) => { const c = 56 + v; x.fillStyle = 'rgb(' + c + ',' + (c + 3) + ',' + (c + 10) + ')'; x.fillRect(i * T2, j * T2, T2, T2); });
+    for (let k = 0; k < 16000; k++) { const g = rnd(); x.fillStyle = g < 0.45 ? 'rgba(255,255,255,.10)' : g < 0.9 ? 'rgba(0,0,0,.18)' : 'rgba(150,155,165,.35)'; const s = rnd() < 0.85 ? 1 : 2; x.fillRect(rnd() * N, rnd() * N, s, s); }
+    const flecks = ['#4F86C6', '#C65A4F', '#D4B04A', '#5FAE6E', '#E8E8E8'];
+    for (let k = 0; k < 900; k++) { x.fillStyle = flecks[k % flecks.length]; x.globalAlpha = 0.45 + rnd() * 0.3; x.fillRect(rnd() * N, rnd() * N, 2, 1 + (rnd() < 0.5)); }
+    x.globalAlpha = 1;
+    // seams
+    x.fillStyle = 'rgba(0,0,0,.55)'; [0, T2].forEach(p => { x.fillRect(p, 0, 2, N); x.fillRect(0, p, N, 2); });
+    x.fillStyle = 'rgba(255,255,255,.07)'; [0, T2].forEach(p => { x.fillRect(p + 2, 0, 1, N); x.fillRect(0, p + 2, N, 1); });
+    // normal map: flat with grooves along the seams and a faint rubber grain
+    n.fillStyle = 'rgb(128,128,255)'; n.fillRect(0, 0, N, N);
+    for (let k = 0; k < 6000; k++) { const a = rnd() * 6.28, r = 128 + Math.cos(a) * 18, gg = 128 + Math.sin(a) * 18; n.fillStyle = 'rgb(' + (r | 0) + ',' + (gg | 0) + ',250)'; n.fillRect(rnd() * N, rnd() * N, 2, 2); }
+    [0, T2].forEach(p => {
+      n.fillStyle = 'rgb(70,128,230)'; n.fillRect(p - 2 < 0 ? N - 2 : p - 2, 0, 2, N); n.fillStyle = 'rgb(186,128,230)'; n.fillRect(p + 2, 0, 2, N);
+      n.fillStyle = 'rgb(128,186,230)'; n.fillRect(0, p - 2 < 0 ? N - 2 : p - 2, N, 2); n.fillStyle = 'rgb(128,70,230)'; n.fillRect(0, p + 2, N, 2);
+    });
+    return (floorCv = { cv, nv });
   }
+  function floorMaterial(w, d) {
+    const { cv, nv } = floorCanvases();
+    const t = new T.CanvasTexture(cv), nt = new T.CanvasTexture(nv);
+    [t, nt].forEach(q => { q.wrapS = q.wrapT = T.RepeatWrapping; q.repeat.set((w || 36) / 2, (d || 22) / 2); q.anisotropy = 8; });
+    return new T.MeshStandardMaterial({ map: t, normalMap: nt, normalScale: new T.Vector2(0.55, 0.55), roughness: 0.9, metalness: 0 });
+  }
+  function floorTexture(w, d) { return floorMaterial(w, d).map; }
   function mirrorTexture() {
     const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
     const x = cv.getContext('2d');
@@ -817,6 +839,63 @@
     const tro = group(g, [1.4, 1.17, 1.0]); mesh(cylG(0.05, 0.08, 0.08, 8), std('#2B2F38', 0.5), tro, [0, 0.04, 0]); mesh(cylG(0.12, 0.04, 0.2, 10), std('#E6B422', 0.25, 0.9), tro, [0, 0.2, 0]);
     return g;
   }
+  // ---------- gym furniture and wall details ----------
+  const BUMPER = ['#1F2228', '#D9483B', '#2F6FE0', '#F2C230', '#2FA05A'];
+  function plyo(p, pos) {
+    const g = group(p, pos);
+    const foam = std('#2B2F38', 0.85), red = std('#D9483B', 0.7);
+    [[0.76, 0.6, 0.6, 0, 0], [0.62, 0.45, 0.5, 0.25, 0.6], [0.5, 0.3, 0.4, -0.15, 1.05]].forEach(([w, h, d, ry, y]) => {
+      const b = group(g, [0, y, 0], [0, ry, 0]);
+      box(w, h, d, foam, b, [0, h / 2, 0]); box(w + 0.01, 0.06, d + 0.01, red, b, [0, h - 0.06, 0]);
+    });
+    return g;
+  }
+  function plateTree(p, pos, s) {
+    const g = group(p, pos); g.scale.setScalar(s || 1);
+    mesh(cylG(0.42, 0.45, 0.06, 24), M.frame(), g, [0, 0.03, 0]);
+    sq([0, 0, 0], [0, 1.25, 0], 0.08, M.frame(), g); mesh(cylG(0.06, 0.06, 0.04, 12), M.rubber(), g, [0, 1.27, 0]);
+    [[0.3, 0], [0.3, Math.PI / 2], [0.3, Math.PI], [0.3, -Math.PI / 2], [0.75, Math.PI / 4], [0.75, -3 * Math.PI / 4], [1.05, -Math.PI / 4], [1.05, 3 * Math.PI / 4]].forEach(([y, a], i) => {
+      const arm = group(g, [0, y, 0], [0, a, 0]);
+      tube([0, 0, 0], [0.24, 0.06, 0], 0.022, M.chrome(), arm);
+      const n = i < 4 ? 2 : 1, r = i < 4 ? 0.225 : i < 6 ? 0.17 : 0.12;
+      for (let k = 0; k < n; k++) plate(r, 0.05, BUMPER[(i + k) % BUMPER.length], arm, 0.1 + k * 0.055).position.y = 0.03;
+    });
+    return g;
+  }
+  function spareBench(p, pos, rot) {
+    const g = group(p, pos, [0, rot || 0, 0]);
+    sq([-0.5, 0.05, 0], [0.5, 0.05, 0], 0.07, M.frame(), g);
+    [-0.45, 0.45].forEach(x => { sq([x, 0.05, -0.2], [x, 0.05, 0.2], 0.06, M.frame(), g); sq([x * 0.8, 0.05, 0], [x * 0.8, 0.4, 0], 0.06, M.frame(), g); });
+    pad(0.55, 0.08, 0.28, g, [-0.26, 0.46, 0]); pad(0.45, 0.08, 0.28, g, [0.27, 0.5, 0], [0, 0, -0.18]);
+    [-1, 1].forEach(k => mesh(cylG(0.05, 0.05, 0.04, 14), M.rubber(), g, [0.52, 0.06, k * 0.17], [Math.PI / 2, 0, 0]));
+    return g;
+  }
+  function cableRack(p, pos) {
+    const g = group(p, pos);
+    box(1.6, 0.9, 0.04, M.frame(), g, [0, 1.6, 0.02]);
+    for (let i = 0; i < 5; i++) tube([-0.64 + i * 0.32, 1.85, 0.04], [-0.64 + i * 0.32, 1.85, 0.16], 0.015, M.chrome(), g);
+    tube([-0.64 - 0.3, 1.8, 0.16], [-0.64 + 0.3, 1.8, 0.16], 0.016, M.chrome(), g);                 // straight bar
+    tube([-0.32, 1.85, 0.16], [-0.42, 1.55, 0.16], 0.015, M.steel(), g); tube([-0.32, 1.85, 0.16], [-0.22, 1.55, 0.16], 0.015, M.steel(), g); // V-bar
+    [-0.03, 0.03].forEach(x => mesh(cylG(0.022, 0.022, 0.5, 8), std('#C9B37E', 0.95), g, [x, 1.6, 0.16]));  // rope
+    [0.32, 0.64].forEach(x => { tube([x, 1.85, 0.16], [x, 1.62, 0.16], 0.01, M.steel(), g); mesh(cylG(0.02, 0.02, 0.13, 10), M.rubber(), g, [x, 1.6, 0.16], [0, 0, Math.PI / 2]); }); // D-handles
+    return g;
+  }
+  function wallFan(p, pos, rot) {
+    const g = group(p, pos, [0, rot || 0, 0]);
+    box(0.12, 0.3, 0.12, M.frame(), g, [0, 0, 0.06]);
+    const head = group(g, [0, -0.12, 0.3], [0.35, 0, 0]);
+    mesh(new T.TorusGeometry(0.32, 0.018, 8, 32), M.chrome(), head);
+    mesh(cylG(0.08, 0.08, 0.12, 16), std('#EDEDED', 0.5), head, null, [Math.PI / 2, 0, 0]);
+    for (let i = 0; i < 3; i++) box(0.26, 0.012, 0.09, std('#EDEDED', 0.5), head, [Math.cos(i * 2.09) * 0.15, Math.sin(i * 2.09) * 0.15, 0], [0, 0.3, i * 2.09]);
+    return g;
+  }
+  function speaker(p, pos, rot) {
+    const g = group(p, pos, [0, rot || 0, 0]);
+    box(0.36, 0.55, 0.3, M.black(), g, [0, 0, 0.15]);
+    mesh(cylG(0.12, 0.12, 0.02, 20), std('#2B2F38', 0.4, 0.3), g, [0, -0.08, 0.31], [Math.PI / 2, 0, 0]);
+    mesh(cylG(0.05, 0.05, 0.02, 14), std('#2B2F38', 0.4, 0.3), g, [0, 0.16, 0.31], [Math.PI / 2, 0, 0]);
+    return g;
+  }
   function kettlebell(p, pos, s, col) {
     const g = group(p, pos); g.scale.setScalar(s);
     mesh(sphG(0.12, 10), std(col || '#2B2F38', 0.5, 0.3), g, [0, 0.11, 0], null, [1, 0.9, 1]);
@@ -833,10 +912,10 @@
     const X = x => (x - 900) * SCALE, Z = y => (y - 550) * SCALE, Wd = 36, Dp = 22, H1 = 3.4, H2 = 7.2;
     const wallM = std('#EFE3CF', 0.9), dado = std('#2F8F8A', 0.85), stripe = std('#FF8A2B', 0.7), skirt = std('#22252B', 0.8);
     // floor + tinted areas
-    const fl = mesh(new T.PlaneGeometry(Wd, Dp), new T.MeshStandardMaterial({ map: floorTexture(Wd, Dp), roughness: 0.95 }), R, [0, 0, 0], [-Math.PI / 2, 0, 0]); fl.castShadow = false;
+    const fl = mesh(new T.PlaneGeometry(Wd, Dp), floorMaterial(Wd, Dp), R, [0, 0, 0], [-Math.PI / 2, 0, 0]); fl.castShadow = false;
     sh.ZONES.forEach(z => {
       const upz = z.x >= 1900, x0 = upz ? z.x - 2000 : z.x;
-      const p = mesh(new T.PlaneGeometry(z.w * SCALE, z.h * SCALE), new T.MeshBasicMaterial({ color: z.floor, transparent: true, opacity: 0.38, depthWrite: false }), upz ? up : R, [X(x0 + z.w / 2), (upz ? ELEV : 0) + 0.008, Z(z.y + z.h / 2)], [-Math.PI / 2, 0, 0]);
+      const p = mesh(new T.PlaneGeometry(z.w * SCALE, z.h * SCALE), new T.MeshBasicMaterial({ color: z.floor, transparent: true, opacity: 0.3, depthWrite: false }), upz ? up : R, [X(x0 + z.w / 2), (upz ? ELEV : 0) + 0.008, Z(z.y + z.h / 2)], [-Math.PI / 2, 0, 0]);
       p.castShadow = false; p.receiveShadow = false;
     });
     const decal = (t, x, y, w, rotZ, parent, elev) => { const s = sign(parent || R, [{ t, size: 150, c: 'rgba(255,255,255,.16)' }], w, w / 4, [X(x), (elev || 0) + 0.012, Z(y)], [-Math.PI / 2, 0, rotZ || 0], { bg: 'none' }); s.material.transparent = true; s.material.depthWrite = false; s.receiveShadow = false; return s; };
@@ -898,7 +977,7 @@
     // mezzanine (upstairs) over the back-left of the ground floor
     const slabW = 700 * SCALE, slabD = 520 * SCALE;
     const slab = box(slabW, 0.3, slabD, std('#5A4E4A', 0.8), up, [X(350), ELEV - 0.15, Z(260)]);
-    const top = mesh(new T.PlaneGeometry(slabW, slabD), new T.MeshStandardMaterial({ map: floorTexture(slabW, slabD), roughness: 0.95 }), up, [X(350), ELEV + 0.004, Z(260)], [-Math.PI / 2, 0, 0]); top.castShadow = false;
+    const top = mesh(new T.PlaneGeometry(slabW, slabD), floorMaterial(slabW, slabD), up, [X(350), ELEV + 0.004, Z(260)], [-Math.PI / 2, 0, 0]); top.castShadow = false;
     box(0.3, 0.45, slabD, std('#2B2F38', 0.6, 0.3), up, [X(700), ELEV - 0.25, Z(260)]);
     box(slabW, 0.45, 0.3, std('#2B2F38', 0.6, 0.3), up, [X(350), ELEV - 0.25, Z(520)]);
     box(0.32, ELEV, 0.32, std('#2B2F38', 0.6, 0.3), up, [X(700), ELEV / 2, Z(518)]);
@@ -1012,6 +1091,16 @@
     [0.35, 0.8, 1.25].forEach((y, j) => [-0.35, 0, 0.35].forEach((z, i) => mesh(sphG(0.15, 10), std(['#2FBF71', '#E2544B', '#FFC93C'][(i + j) % 3], 0.6), mb, [-0.12, y, z])));
     const [cx3, , cz3] = map3(1345, 335); const cb = group(R, [cx3, 0, cz3]); mesh(cylG(0.18, 0.15, 0.3, 12), std('#F4F1EA', 0.6), cb, [0, 0.15, 0]); mesh(cylG(0.17, 0.17, 0.02, 12), std('#FFFFFF', 1), cb, [0, 0.29, 0]);
     const [ix, , iz] = map3(700, 1070); const bin = group(R, [ix, 0, iz]); mesh(cylG(0.2, 0.17, 0.6, 12), std('#2F8F8A', 0.6), bin, [0, 0.3, 0]);
+    // furniture (collides, see SHARED.DECOR) and wall details
+    (sh.DECOR || []).forEach(d => {
+      const upd = d.x >= 1900, [x, y3, z] = map3(d.x + d.w / 2, d.y + d.h / 2), par = upd ? up : R;
+      if (d.k === 'plyo') plyo(par, [x, y3, z]);
+      else if (d.k === 'tree') plateTree(par, [x, y3, z], d.w < 50 ? 0.85 : 1);
+      else if (d.k === 'bench') spareBench(par, [x, y3, z], Math.PI / 2);
+    });
+    { const [a, , b] = map3(300, 0); cableRack(R, [a, 0, b + 0.06]); }
+    [[1450, 0, 0], [1750, 0, 0], [980, 0, 0]].forEach(([x, y, r]) => { const [a, , b] = map3(x, y); wallFan(R, [a, 2.9, b + 0.02], r); });
+    [[1790, 120, -Math.PI / 2], [10, 1080, Math.PI / 2]].forEach(([x, y, r]) => { const [a, , b] = map3(x, y); speaker(R, [a, 3.0, b], r); });
     const [lx, , lz] = map3(560, 560);
     const d1 = dumbbell(0.7, '#9C6ADE', R); d1.position.set(lx, 0.1, lz); d1.rotation.y = 0.8;
     const d2 = dumbbell(0.7, '#9C6ADE', R); d2.position.set(lx + 0.5, 0.1, lz + 0.2); d2.rotation.y = 2.2;

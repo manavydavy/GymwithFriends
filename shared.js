@@ -108,7 +108,13 @@
   ];
   const TREADS = [0, 1, 2].map(i => ({ x: 2260 + i * 110, y: 300, w: 80, h: 120 }));
   const DESK = { x: 760, y: 960, w: 240, h: 60 };
-  const SOLIDS = [...MACH, ...TREADS, DESK, ...WALLS];
+  // Gym furniture you can bump into (plyo boxes, plate trees, a spare bench), tucked against walls
+  const DECOR = [
+    { k: 'plyo', x: 470, y: 1052, w: 80, h: 44 }, { k: 'tree', x: 600, y: 1050, w: 56, h: 50 },
+    { k: 'tree', x: 990, y: 28, w: 60, h: 60 }, { k: 'bench', x: 1095, y: 560, w: 40, h: 110 },
+    { k: 'tree', x: 1730, y: 300, w: 56, h: 56 }, { k: 'tree', x: 2652, y: 250, w: 46, h: 46 }
+  ];
+  const SOLIDS = [...MACH, ...TREADS, DESK, ...WALLS, ...DECOR];
   const REST = [
     { x: 930, y: 720, r: 92, n: 'Stretch mat' },
     { x: 1090, y: 200, r: 52, n: 'Fountain' },
@@ -195,5 +201,5 @@
     o.y = Math.max(72, Math.min(f.y + f.h - 15, o.y));
   }
 
-  Object.assign(out, { CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, TREADS, DESK, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, route, zoneOf, floorOf, collide, stepStaff, staffSees, angDiff });
+  Object.assign(out, { CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, TREADS, DESK, DECOR, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, route, zoneOf, floorOf, collide, stepStaff, staffSees, angDiff });
 })(typeof module !== 'undefined' ? module.exports : (window.SHARED = {}));
