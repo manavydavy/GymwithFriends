@@ -24,7 +24,9 @@ const FILES = {
   '/3d': ['3d.html', 'text/html; charset=utf-8'],
   '/3d.html': ['3d.html', 'text/html; charset=utf-8'],
   '/gym3d.js': ['gym3d.js', 'application/javascript; charset=utf-8'],
-  '/view3d.js': ['view3d.js', 'application/javascript; charset=utf-8']
+  '/view3d.js': ['view3d.js', 'application/javascript; charset=utf-8'],
+  '/GLTFLoader.js': ['GLTFLoader.js', 'application/javascript; charset=utf-8'],
+  '/models/squat_rack.glb': ['models/squat_rack.glb', 'model/gltf-binary']
 };
 const server = http.createServer((req, res) => {
   const u = req.url.split('?')[0];

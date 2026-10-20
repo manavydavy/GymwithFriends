@@ -637,8 +637,71 @@
     'Shoulder press': 'shoulder', 'Lat pulldown': 'latpull', 'Seated row': 'row', 'Cable stack': 'cable',
     'Leg press': 'legpress', 'Leg extension': 'legext', 'Lateral raise': 'latraise'
   };
+  // ---------- models made in Blender (.glb) ----------
+  // Loaded once; if anything fails the procedural models above are used instead.
+  const ASSETS = {};
+  const GLB = { squat: 'models/squat_rack.glb' };
+  // Blender material name -> game material [colour, roughness, metalness]. 'plate' takes the muscle-group colour.
+  const GLB_MATS = { frame: ['#2B2F38', 0.55, 0.35], paint: ['#F07A3A', 0.45, 0.15], chrome: ['#E6EBF2', 0.18, 0.9], steel: ['#CBD2DC', 0.32, 0.75],
+    steelDark: ['#5C6370', 0.45, 0.6], rubber: ['#1F2228', 0.95, 0], wood: ['#C88F55', 0.7, 0], black: ['#141518', 0.6, 0], white: ['#F4F1EA', 0.6, 0], plateRed: ['plate', 0.6, 0.05] };
+  function loadAssets() {
+    if (!T.GLTFLoader) return Promise.resolve();
+    const loader = new T.GLTFLoader();
+    return Promise.all(Object.entries(GLB).map(([k, url]) => new Promise(res => loader.load(url, gl => {
+      gl.scene.traverse(o => {
+        if (!o.isMesh) return;
+        // baked ambient occlusion lives in the vertex colours; soften it and drop the alpha channel
+        const c = o.geometry.getAttribute('color');
+        if (c) {
+          const out = new Float32Array(c.count * 3);
+          // r128 doesn't un-normalise integer colours for us
+          const k = !c.normalized ? 1 : c.array instanceof Uint16Array ? 65535 : c.array instanceof Uint8Array ? 255 : 1;
+          for (let i = 0; i < c.count; i++) { const v = 0.42 + 0.58 * Math.pow(Math.min(1, c.getX(i) / k), 0.8); out[i * 3] = out[i * 3 + 1] = out[i * 3 + 2] = v; }
+          o.geometry.setAttribute('color', new T.BufferAttribute(out, 3));
+        }
+        o.castShadow = true; o.receiveShadow = true;
+      });
+      ASSETS[k] = gl.scene; res();
+    }, undefined, e => { console.warn('Model failed to load, using the built-in one:', url, e); res(); }))));
+  }
+  function glbInstance(key, gc) {
+    const s = ASSETS[key].clone(true);
+    s.traverse(o => {
+      if (!o.isMesh) return;
+      const swap = mt => { const k = (mt.name || '').replace(/^GC_/, ''); const d = GLB_MATS[k] || ['#888888', 0.7, 0];
+        return std(d[0] === 'plate' ? gc : d[0], d[1], d[2], { flatShading: false, vertexColors: !!o.geometry.getAttribute('color') }); };
+      o.material = Array.isArray(o.material) ? o.material.map(swap) : swap(o.material);
+    });
+    return s;
+  }
+  // Squat rack from Blender. Same rep animation as MB.squat, just a nicer model.
+  MB.squatGLB = function (gc) {
+    const g = new T.Group();
+    footprint(g, 1.7, 1.7);
+    const s = glbInstance('squat', gc); g.add(s);
+    const bar = s.getObjectByName('SquatRack_Bar');
+    const rest = bar.position.clone();
+    let P = null;
+    const set = (L, used) => {
+      if (!used) { bar.position.copy(rest); P = null; return; }
+      const pel = [0, lerp(0.9, 0.52, L), lerp(0.05, 0.28, L)], ch = [0, lerp(1.42, 1.0, L), lerp(0.02, -0.08, L)];
+      bar.position.set(0, ch[1] - 0.04, ch[2] + lerp(0.1, 0.16, L));
+      P = { pelvis: pel, chest: ch, front: [0, lerp(0, -0.3, L), -1], headFront: [0, lerp(0.05, 0.25, L), -1], feet: [[-0.2, 0.11, -0.04], [0.2, 0.11, -0.04]],
+        footFront: [[-0.25, 0, -1], [0.25, 0, -1]], kneePole: [[-0.5, 0, -1], [0.5, 0, -1]],
+        hands: [[-0.45, bar.position.y, bar.position.z - 0.02], [0.45, bar.position.y, bar.position.z - 0.02]], elbowPole: [[-0.3, -1, 1], [0.3, -1, 1]] };
+    };
+    set(0, false);
+    return { g, set, pose: () => P };
+  };
+  // While we compare: only Squat rack 1 uses the Blender model (?glb=all for both, ?glb=off for neither).
+  function glbFor(m) {
+    const q = (typeof location !== 'undefined' && (location.search.match(/[?&]glb=(\w+)/) || [])[1]) || '';
+    if (q === 'off' || !ASSETS.squat || TYPE[m.name] !== 'squat') return null;
+    return (q === 'all' || m.name === 'Squat rack 1') ? 'squatGLB' : null;
+  }
+
   function buildMachine(m, groupColour) {
-    const b = MB[TYPE[m.name]](groupColour);
+    const b = MB[glbFor(m) || TYPE[m.name]](groupColour);
     const [x, z] = toWorld(m.x + m.w / 2, m.y + m.h / 2);
     b.g.position.set(x, m.x >= 1900 ? 3.6 : 0, z);
     b.def = m;
@@ -893,5 +956,5 @@
     const d2 = dumbbell(0.7, '#9C6ADE', R); d2.position.set(lx + 0.5, 0.1, lz + 0.2); d2.rotation.y = 2.2;
   }
 
-  out.G3 = { T, SCALE, toWorld, M, std, mesh, box, group, span, tube, sq, pad, plate, barbell, dumbbell, textTex, sign, makeChar, POSE, buildMachine, buildRoom, map3, heightAt, ELEV, SKINS, HAIRS, MB };
+  out.G3 = { loadAssets, ASSETS, T, SCALE, toWorld, M, std, mesh, box, group, span, tube, sq, pad, plate, barbell, dumbbell, textTex, sign, makeChar, POSE, buildMachine, buildRoom, map3, heightAt, ELEV, SKINS, HAIRS, MB };
 })(window);

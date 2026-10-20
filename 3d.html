@@ -37,6 +37,7 @@ button:focus-visible{outline:3px solid #8FB6FF;outline-offset:2px}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="shared.js"></script>
 <script src="gym3d.js"></script>
+<script src="GLTFLoader.js"></script>
 <script>
 const SH=window.SHARED,T=THREE,V3=T.Vector3;
 const renderer=new T.WebGLRenderer({antialias:true});
@@ -55,6 +56,7 @@ key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-21,righ
 scene.add(key);
 [[-11,3.2,4],[0,3.2,0],[8,3.2,-6],[7,3.2,6],[-11,6.6,-6]].forEach(p=>{const l=new T.PointLight('#FFD9A8',0.28,15,2);l.position.set(...p);scene.add(l)});
 
+G3.loadAssets().then(()=>{
 const {up}=G3.buildRoom(scene,SH);
 
 // machines with someone on each
@@ -143,6 +145,7 @@ for(let i=drops.length-1;i>=0;i--){const d=drops[i];d.life-=dt;d.v.y-=6*dt;d.d.p
 if(flying>0){flying-=dt;const k=Math.min(1,dt*3.2);camera.position.lerp(view.pos,k);controls.target.lerp(view.tgt,k)}
 controls.update();renderer.render(scene,camera)}
 document.getElementById('load').remove();frame();
+});
 </script>
 </body>
 </html>

@@ -75,3 +75,9 @@ was on a claim, wiping takes it back off.
 4. Mates on the same Wi-Fi can join using your computer's local IP, for example `http://192.168.1.20:3000`.
 
 For a quick test round, start it with a shorter clock: `ROUND_LENGTH=40 npm start` (Mac/Linux).
+
+## Models from Blender
+
+`models/` holds `.glb` files made in Blender and loaded by the 3D view with `GLTFLoader.js`. If a model fails to load, the game falls back to the built-in shapes.
+
+- `squat_rack.glb`: squat rack with baked shading. For now only **Squat rack 1** uses it, so you can compare it with Squat rack 2 next to it. Add `?glb=all` to the URL to use it for both racks, or `?glb=off` for neither.

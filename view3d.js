@@ -14,6 +14,7 @@
     if (out.V3D.ready) return;
     if (!window.THREE) await load('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
     if (!window.G3) await load('gym3d.js');
+    if (!THREE.GLTFLoader) await load('GLTFLoader.js').catch(() => {});
     T = THREE; G = G3; SH = window.SHARED;
     renderer = new T.WebGLRenderer({ antialias: true });
     const phone = (() => { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } })();
@@ -29,6 +30,7 @@
     key = new T.DirectionalLight('#FFF1DC', 0.85); key.position.set(-10, 26, 15); key.castShadow = true;
     key.shadow.mapSize.set(1536, 1536); Object.assign(key.shadow.camera, { left: -21, right: 21, top: 15, bottom: -15, near: 1, far: 70 });
     key.shadow.bias = -0.0006; key.shadow.normalBias = 0.02; scene.add(key);
+    await G.loadAssets();
     const room = G.buildRoom(scene, SH); up = room.up; restMats = room.restMats;
     const hlMat = new T.MeshBasicMaterial({ color: '#FFC93C', transparent: true, opacity: 0.8, depthWrite: false });
     machines = SH.MACH.map(m => {
