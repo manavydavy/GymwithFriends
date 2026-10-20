@@ -1,0 +1,16 @@
+{
+  "name": "gym-colonisers-online",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Gym Colonisers browser multiplayer prototype",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
