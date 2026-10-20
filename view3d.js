@@ -4,7 +4,7 @@
   let T, G, SH, renderer, scene, camera, up, glcv, hemi, key;
   let machines = [], chars = {}, rings = {}, staff, gaz, W = 800, H = 500;
   const camPos = { x: 0, y: 12, z: 10 }, camTgt = { x: 0, y: 1, z: 0 };
-  let upVisible = true, first = true, restMats = [], cone = null, puffTex = null, goldFx = null;
+  let upVisible = true, first = true, restMats = [], cone = null, puffTex = null, goldFx = null, goldArrow = null;
   const puffs = [], pool = [];
   function puff(pos, vel, o) {
     let s = pool.pop();
@@ -93,6 +93,13 @@
     const rim = new T.Mesh(new T.TorusGeometry(0.34, 0.035, 8, 32), goldM); coin.add(rim);
     const gring = new T.Mesh(new T.RingGeometry(1.15, 1.35, 48), new T.MeshBasicMaterial({ color: '#FFC93C', transparent: true, opacity: 0.85, depthWrite: false, side: T.DoubleSide }));
     gring.rotation.x = -Math.PI / 2; gring.position.y = 0.05; goldFx.add(gring); goldFx.userData.ring = gring;
+    // big gold arrow on the floor around you, pointing the way to the golden machine
+    const sh = new T.Shape(); sh.moveTo(0.75, 0); sh.lineTo(0.05, 0.5); sh.lineTo(0.05, 0.2); sh.lineTo(-0.55, 0.2); sh.lineTo(-0.55, -0.2); sh.lineTo(0.05, -0.2); sh.lineTo(0.05, -0.5); sh.closePath();
+    goldArrow = new T.Group(); goldArrow.visible = false; scene.add(goldArrow);
+    const ga = new T.Mesh(new T.ShapeGeometry(sh), new T.MeshBasicMaterial({ color: '#FFC93C', transparent: true, opacity: 0.95, depthWrite: false, side: T.DoubleSide }));
+    const gb = new T.Mesh(new T.ShapeGeometry(sh), new T.MeshBasicMaterial({ color: '#3A2A00', transparent: true, opacity: 0.6, depthWrite: false, side: T.DoubleSide }));
+    [gb, ga].forEach((m, i) => { m.rotation.x = -Math.PI / 2; m.position.y = 0.06 + i * 0.01; m.renderOrder = 6 + i; goldArrow.add(m); });
+    gb.scale.setScalar(1.15); gb.position.x = -0.04;
     out.V3D.ready = true;
     resize(W, H);
   }
@@ -193,6 +200,15 @@
       }
     });
     stepPuffs(dt);
+    if (goldArrow) {
+      const g = ctx.GA;
+      goldArrow.visible = !!g;
+      if (g) {
+        const [x, y, z] = G.map3(ME.x, ME.y), r = 1.45 + 0.08 * Math.sin(TT * 6);
+        goldArrow.position.set(x + Math.cos(g.a) * r, y, z + Math.sin(g.a) * r);
+        goldArrow.rotation.y = -g.a; goldArrow.scale.setScalar(1 + 0.08 * Math.sin(TT * 6));
+      }
+    }
     // golden machine marker
     if (goldFx) {
       const gi = S.st === 'playing' && S.gm >= 0 ? S.gm : -1;
