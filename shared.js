@@ -3,7 +3,7 @@
 (function (out) {
   // ---- Tuning: every gameplay number lives here ----
   const CFG = {
-    roundLength: 240,      // seconds per round
+    roundLength: 160,      // seconds per round (2:40)
     countdown: 5,          // "get ready" seconds before each round
     wipeCooldown: 20,      // towel unusable for this long after a wipe down
     wipeAmount: 100,       // fatigue removed by a wipe down
