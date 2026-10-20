@@ -20,7 +20,10 @@ const FILES = {
   '/': [PAGE, 'text/html; charset=utf-8'],
   '/index.html': [PAGE, 'text/html; charset=utf-8'],
   '/shared.js': ['shared.js', 'application/javascript; charset=utf-8'],
-  '/models.js': ['models.js', 'application/javascript; charset=utf-8']
+  '/models.js': ['models.js', 'application/javascript; charset=utf-8'],
+  '/3d': ['3d.html', 'text/html; charset=utf-8'],
+  '/3d.html': ['3d.html', 'text/html; charset=utf-8'],
+  '/gym3d.js': ['gym3d.js', 'application/javascript; charset=utf-8']
 };
 const server = http.createServer((req, res) => {
   const u = req.url.split('?')[0];
