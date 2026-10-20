@@ -8,6 +8,7 @@ One small Node.js server runs the game and serves the page, so the whole thing i
 | File | What it does |
 |---|---|
 | `server.js` | The game server. Runs rooms, the clock, machines, towels, shoves, strikes, scores and practice dummies. |
+| `models.js` | Drawings of the characters and all 15 machines, including how each one animates during a rep. |
 | `shared.js` | The gym layout and every tuning number (`CFG`). Used by both the server and the browser. |
 | `public/index.html` | The game page each player opens. Draws the gym, handles controls, talks to the server. |
 | `package.json` | Tells hosting services how to install and start the server. |

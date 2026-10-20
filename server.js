@@ -19,7 +19,8 @@ const PAGE = fs.existsSync(path.join(__dirname, 'index.html')) ? 'index.html' : 
 const FILES = {
   '/': [PAGE, 'text/html; charset=utf-8'],
   '/index.html': [PAGE, 'text/html; charset=utf-8'],
-  '/shared.js': ['shared.js', 'application/javascript; charset=utf-8']
+  '/shared.js': ['shared.js', 'application/javascript; charset=utf-8'],
+  '/models.js': ['models.js', 'application/javascript; charset=utf-8']
 };
 const server = http.createServer((req, res) => {
   const u = req.url.split('?')[0];
@@ -52,7 +53,7 @@ function makeRoom(code) {
   return r;
 }
 
-function freshStats() { return { shoves: 0, shoved: 0, steals: 0, perfects: 0, reps: 0, pulls: 0, strikes: 0, wipes: 0 }; }
+function freshStats() { return { shoves: 0, shoved: 0, steals: 0, perfects: 0, reps: 0, pulls: 0, strikes: 0, wipes: 0, misses: 0 }; }
 function resetPlayer(p, i) {
   Object.assign(p, {
     x: 1300 - (i % 6) * 45, y: 650, on: null, fat: 0, combo: 0, miss: 0, stun: 0, kvx: 0, kvy: 0,
@@ -233,7 +234,7 @@ function rep(r, p, q) {
   p.lastRep = now; p.idle = 0;
   const m = S.MACH[p.on];
   if (q !== 'perfect' && q !== 'good') {
-    p.combo = 0; p.miss++;
+    p.combo = 0; p.miss++; p.stats.misses++;
     if (p.miss >= 3) { say(r, p, 'Dropped the bar!', '#ff8a80'); stepOff(r, p); }
     return;
   }
@@ -480,7 +481,7 @@ function snapshot(r) {
       id: p.id, n: p.n, c: p.c, b: p.bot ? 1 : 0, x: Math.round(p.x), y: Math.round(p.y), on: p.on,
       ft: Math.round(p.fat), lk: p.on !== null || p.stun > 0 || p.lock > 0 ? 1 : 0, st: p.stun > 0 ? 1 : 0, lo: p.lock > 0 ? 1 : 0,
       tp: p.tp, lm: p.limp > 0 ? 1 : 0, g: p.gains, gr: S.GK.map(k => Math.round(p.grp[k].p)), pl: S.GK.map(k => (p.grp[k].pulled ? 1 : 0)),
-      hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd)
+      hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd), rc: p.stats.reps, mc: p.stats.misses
     });
   }
   const msg = JSON.stringify({
