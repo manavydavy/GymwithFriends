@@ -112,10 +112,9 @@
   ];
   const DOOR = { x: 1080, y: 1100 };
   const SPAWN = i => [1130 - (i % 8) * 34, 1062];
-  // Staff patrol. 'scan' = stop and look all the way around. Between floors the staff take the stairs.
+  // Staff patrol (ground floor only, so upstairs has no staff). 'scan' = stop and look all the way around.
   const STAFF_PATH = [[1050, 880], [980, 560, 'scan'], [890, 350], [890, 250, 'scan'], [490, 250, 'scan'], [200, 250, 'scan'], [490, 250], [490, 350], [560, 560, 'scan'],
-    [300, 1060], [100, 1060], [100, 620], [100, 560], [2100, 468], [2380, 260, 'scan'], [2600, 260, 'scan'], [2100, 468], [100, 615], [100, 1060],
-    [1050, 880], [1255, 1000], [1255, 300, 'scan'], [1600, 260, 'scan'], [1255, 300], [1255, 1000]];
+    [700, 860], [1050, 880], [1255, 1000], [1255, 300, 'scan'], [1600, 260, 'scan'], [1255, 300], [1255, 1000]];
   // Walking graph for practice dummies. Directed pairs go through the stair triggers.
   const NAV = {
     A: [680, 780], B: [300, 780], Q: [300, 1060], H: [1050, 880], C: [490, 350], D: [890, 350], E: [490, 250], F: [890, 250], G: [180, 240],
