@@ -59,7 +59,7 @@ function makeRoom(code) {
   const r = {
     code, players: new Map(), st: 'lobby', t: 0, prog: S.PROGRAMS[0], gold: -1, pre: null, preT: 0,
     m: S.MACH.map(() => ({ user: null, claim: null })),
-    staff: { x: S.STAFF_PATH[0][0], y: S.STAFF_PATH[0][1], i: 1, dir: 0, pause: 0 }, asks: [], ev: [], host: null, res: null,
+    staff: { x: S.STAFF_PATH[0][0], y: S.STAFF_PATH[0][1], i: 1, dir: 0, pause: 0 }, asks: [], ev: [], host: null, res: null, match: null,
     firstDone: false, warned: false
   };
   rooms.set(code, r);
@@ -154,7 +154,13 @@ function moveGold(r) {
 
 function act(r, p, a) {
   const isHost = p.id === r.host;
-  if (a === 'start') { if (isHost && (r.st === 'lobby' || r.st === 'results')) startRound(r); return; }
+  if (a === 'start') {
+    if (!isHost) return;
+    if (r.st === 'lobby' || r.st === 'final') startMatch(r);
+    else if (r.st === 'results') startRound(r);      // skip the break between rounds
+    return;
+  }
+  if (a === 'lobby') { if (isHost && (r.st === 'final' || r.st === 'results')) { r.st = 'lobby'; r.match = null; r.res = null; let i = 0; for (const q of r.players.values()) resetPlayer(q, i++); } return; }
   if (a === 'bot+') {
     const bots = [...r.players.values()].filter(x => x.bot);
     if (isHost && r.st !== 'playing' && bots.length < BOT_NAMES.length && r.players.size < C.maxPlayers) {
@@ -419,8 +425,25 @@ function botThink(r, p, dt) {
   act(r, p, 'use');
 }
 
-// ---------- round flow ----------
+// ---------- match and round flow ----------
+// A match is C.matchRounds rounds. Every round's gains are banked; most points over the whole match wins.
+function startMatch(r) {
+  r.match = { round: 0, of: C.matchRounds, rec: {} };
+  startRound(r);
+}
+function matchRec(r, p) {
+  const m = r.match;
+  if (!m.rec[p.id]) m.rec[p.id] = { id: p.id, n: p.n, c: p.c, b: p.bot ? 1 : 0, pts: Array(m.of).fill(0), w: 0 };
+  return m.rec[p.id];
+}
+const banked = (r, p) => { const q = r.match && r.match.rec[p.id]; return q ? q.pts.reduce((a, b) => a + b, 0) : 0; };
+function standings(r) {
+  return Object.values(r.match.rec).map(q => ({ id: q.id, n: q.n, c: q.c, b: q.b, pts: q.pts, w: q.w, t: q.pts.reduce((a, b) => a + b, 0) }))
+    .sort((a, b) => b.t - a.t || b.w - a.w);
+}
 function startRound(r) {
+  if (!r.match) r.match = { round: 0, of: C.matchRounds, rec: {} };
+  r.match.round++;
   r.st = 'countdown'; r.t = C.countdown; r.res = null;
   r.prog = S.PROGRAMS[Math.floor(Math.random() * S.PROGRAMS.length)];
   r.m.forEach(m => { m.user = null; m.claim = null; });
@@ -449,7 +472,21 @@ function endRound(r) {
   award('Pulled something', 'pulls', v => v + (v === 1 ? ' muscle' : ' muscles'));
   award("Staff's favourite", 'strikes', v => v + (v === 1 ? ' strike' : ' strikes'));
   award('Sweatiest towel', 'wipes', v => v + (v === 1 ? ' wipe down' : ' wipe downs'));
-  r.res = { rank, awards };
+  // bank this round into the match
+  const mt = r.match;
+  for (const p of ps) { const q = matchRec(r, p); q.n = p.n; q.c = p.c; q.pts[mt.round - 1] = p.gains; }
+  if (rank[0] && rank[0].g > 0) matchRec(r, r.players.get(rank[0].id)).w++;
+  const table = standings(r);
+  r.res = { rank, awards, round: mt.round, of: mt.of, table };
+  if (mt.round >= mt.of) {
+    // match over: the top three take the podium, everyone else lines up in front
+    r.st = 'final'; r.t = 0; r.res.champ = table[0] ? table[0].id : null;
+    let k = 0;
+    table.forEach((q, i) => { const p = r.players.get(q.id); if (!p) return;
+      if (i < 3) { p.x = S.PODIUM[i].x; p.y = S.PODIUM[i].y; } else { p.x = 560 + (k % 6) * 32; p.y = 912; k++; }
+      p.tp++; });
+    if (table[0]) ev(r, { k: 'ban', s: table[0].n + ' wins the match!', c: '#FFC93C' });
+  } else r.t = C.intermission;
 }
 
 function tick(r, dt) {
@@ -461,6 +498,11 @@ function tick(r, dt) {
       for (const p of r.players.values()) p.lastPos = Date.now();
       ev(r, { k: 'ban', s: 'Go!', c: '#FFC93C' });
     }
+    return;
+  }
+  if (r.st === 'results' && r.match && r.match.round < r.match.of) {
+    r.t -= dt;
+    if (r.t <= 0) startRound(r);
     return;
   }
   if (r.st !== 'playing') return;
@@ -571,15 +613,15 @@ function snapshot(r) {
       id: p.id, n: p.n, c: p.c, b: p.bot ? 1 : 0, x: Math.round(p.x), y: Math.round(p.y), on: p.on,
       ft: Math.round(p.fat), lk: p.on !== null || p.stun > 0 || p.lock > 0 ? 1 : 0, st: p.stun > 0 ? 1 : 0, lo: p.lock > 0 ? 1 : 0,
       tp: p.tp, lm: p.limp > 0 ? 1 : 0, sp: p.sprinting ? 1 : 0, g: p.gains, gr: S.GK.map(k => Math.round(p.grp[k].p)), pl: S.GK.map(k => (p.grp[k].pulled ? 1 : 0)),
-      hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd), gn: p.goldN, pw: Math.ceil(p.preT), rs: p.recov ? 1 : 0, rc: p.stats.reps, mc: p.stats.misses
+      hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd), gn: p.goldN, pw: Math.ceil(p.preT), rs: p.recov ? 1 : 0, mp: banked(r, p), mw: r.match && r.match.rec[p.id] ? r.match.rec[p.id].w : 0, rc: p.stats.reps, mc: p.stats.misses
     });
   }
   const msg = JSON.stringify({
-    t: 'snap', st: r.st, tm: Math.round(r.t * 10) / 10, pg: r.prog, gm: r.st === 'playing' ? r.gold : -1, pr: r.st === 'playing' && r.pre ? [r.pre.x, r.pre.y] : null, host: r.host, code: r.code,
+    t: 'snap', st: r.st, tm: Math.round(r.t * 10) / 10, pg: r.prog, gm: r.st === 'playing' ? r.gold : -1, pr: r.st === 'playing' && r.pre ? [r.pre.x, r.pre.y] : null, host: r.host, code: r.code, mr: r.match ? [r.match.round, r.match.of] : null,
     sf: [Math.round(r.staff.x), Math.round(r.staff.y), Math.round(r.staff.dir * 100) / 100],
     m: r.m.map(m => [m.user, m.claim ? m.claim.owner : null, m.claim ? Math.round(m.claim.t * 10) / 10 : 0]),
     p: P, ak: r.asks.map(q => ({ by: q.by, ow: q.owner, m: q.m, t: Math.round(q.t * 10) / 10 })),
-    ev: r.ev, res: r.st === 'results' ? r.res : null
+    ev: r.ev, res: r.st === 'results' || r.st === 'final' ? r.res : null
   });
   r.ev = [];
   for (const p of r.players.values()) if (!p.bot && p.ws.readyState === 1) p.ws.send(msg);
@@ -605,6 +647,7 @@ wss.on('connection', ws => {
       return;
     }
     if (d.t === 'tp' && process.env.GC_DEBUG && typeof d.x === 'number' && typeof d.y === 'number') { p.x = d.x; p.y = d.y; p.lastPos = Date.now(); if (typeof d.ft === 'number') p.fat = d.ft; }   // screenshots only
+    if (d.t === 'endnow' && process.env.GC_DEBUG && r.st === 'playing') r.t = 0.05;   // tests only
     if (d.t === 'pos') { p.sprintT = d.s ? 0.3 : 0; movePlayer(r, p, d.x, d.y); }
     else if (d.t === 'act') act(r, p, String(d.a));
     else if (d.t === 'rep') rep(r, p, d.q);

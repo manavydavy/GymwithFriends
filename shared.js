@@ -5,6 +5,8 @@
   const CFG = {
     roundLength: 160,      // seconds per round (2:40)
     countdown: 5,          // "get ready" seconds before each round
+    matchRounds: 3,        // a match is this many rounds; most points over all of them wins
+    intermission: 15,      // seconds between rounds (the host can skip it)
     wipeCooldown: 20,      // towel unusable for this long after a wipe down
     wipeAmount: 100,       // fatigue removed by a wipe down
     maxPlayers: 6,
@@ -127,6 +129,8 @@
     { x: 2640, y: 400, r: 52, n: 'Fountain' }
   ];
   const DOOR = { x: 1080, y: 1100 };
+  // The winners' podium for the end of a match (1st, 2nd, 3rd), in the main hall
+  const PODIUM = [{ x: 640, y: 836, h: 0.62 }, { x: 586, y: 848, h: 0.42 }, { x: 694, y: 848, h: 0.28 }];
   const SPAWN = i => [1130 - (i % 8) * 34, 1062];
   // Staff patrol (ground floor only, so upstairs has no staff). 'scan' = stop and look all the way around.
   const STAFF_PATH = [[1050, 880], [980, 560, 'scan'], [890, 350], [890, 250, 'scan'], [490, 250, 'scan'], [200, 250, 'scan'], [490, 250], [490, 350], [560, 560, 'scan'],
@@ -207,5 +211,5 @@
     o.y = Math.max(72, Math.min(f.y + f.h - 15, o.y));
   }
 
-  Object.assign(out, { CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, TREADS, DESK, DECOR, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, stairDest, route, zoneOf, floorOf, collide, stepStaff, staffSees, angDiff });
+  Object.assign(out, { PODIUM, CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, TREADS, DESK, DECOR, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, stairDest, route, zoneOf, floorOf, collide, stepStaff, staffSees, angDiff });
 })(typeof module !== 'undefined' ? module.exports : (window.SHARED = {}));

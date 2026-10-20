@@ -50,7 +50,10 @@ Render redeploys automatically. Anyone mid-game gets disconnected and can hit **
 
 1. Open the link, type your name and leave the room code blank to create a room.
 2. Tap **Share** or **Copy link** in the lobby and send it to your mates.
-3. The host presses **Start round**. Everyone gets a 5 second countdown, then the round starts. Up to 6 players per room.
+3. The host presses **Start match**. A match is 3 rounds; each starts with a 5 second countdown. Up to 6 players per room.
+   Between rounds the leaderboard shows everyone's points per round, rounds won and the running total; the next round
+   starts by itself after 15 seconds (or the host starts it sooner). After round 3 the player with the most points
+   overall takes the crown: podium, confetti, the lot.
 4. Playing alone? The host can **Add a bot** (up to 3) to test against.
 
 The gym has separate areas: the main hall (arms and shoulders), cable alley (back), a long corridor

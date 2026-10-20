@@ -23,7 +23,7 @@
     }
     return max;
   }
-  let shell = null, upVisible = true, first = true, restMats = [], cone = null, puffTex = null, goldFx = null, goldArrow = null, preFx = null;
+  let crown = null, podium = null, shell = null, upVisible = true, first = true, restMats = [], cone = null, puffTex = null, goldFx = null, goldArrow = null, preFx = null;
   const puffs = [], pool = [];
   function puff(pos, vel, o) {
     let s = pool.pop();
@@ -149,6 +149,24 @@
     gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
     gx.fillStyle = gr; gx.fillRect(0, 0, 64, 64);
     puffTex = new T.CanvasTexture(cv);
+    // crown for the match leader / winner, and the winners' podium
+    crown = new T.Group(); crown.visible = false; scene.add(crown);
+    { const gold = new T.MeshStandardMaterial({ color: '#FFC93C', roughness: 0.25, metalness: 0.9, emissive: '#6B4A00', emissiveIntensity: 0.35 });
+      crown.add(new T.Mesh(new T.CylinderGeometry(0.2, 0.18, 0.11, 24, 1, true), gold)); crown.children[0].material.side = T.DoubleSide;
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2;
+        const sp = new T.Mesh(new T.ConeGeometry(0.05, 0.14, 8), gold); sp.position.set(Math.cos(a) * 0.185, 0.12, Math.sin(a) * 0.185); crown.add(sp);
+        const ball = new T.Mesh(new T.SphereGeometry(0.022, 8, 6), gold); ball.position.set(Math.cos(a) * 0.185, 0.2, Math.sin(a) * 0.185); crown.add(ball);
+        const gem = new T.Mesh(new T.SphereGeometry(0.026, 8, 6), new T.MeshStandardMaterial({ color: ['#E2544B', '#2F6FE0', '#2FBF71'][i % 3], roughness: 0.1, metalness: 0.2 }));
+        gem.position.set(Math.cos(a + 0.52) * 0.2, 0.0, Math.sin(a + 0.52) * 0.2); crown.add(gem); }
+      crown.traverse(o => { if (o.isMesh) o.castShadow = true; }); }
+    podium = new T.Group(); podium.visible = false; scene.add(podium);
+    SH.PODIUM.forEach((q, i) => {
+      const [x, , z] = G.map3(q.x, q.y), col = ['#FFC93C', '#C9CED6', '#C98A4B'][i];
+      const b = G.box(1.0, q.h, 0.9, G.std('#22252B', 0.5, 0.2), podium, [x, q.h / 2, z]);
+      G.box(1.02, 0.06, 0.92, G.std(col, 0.3, 0.7), podium, [x, q.h - 0.03, z]);
+      G.sign(podium, [{ t: String(i + 1), size: 300, c: col }], 0.4, 0.4, [x, q.h / 2, z + 0.451], null, { bg: 'none', w: 256, h: 256 }).material.transparent = true;
+    });
+    { const [x, , z] = G.map3(640, 845); const carpet = G.box(4.2, 0.02, 2.6, G.std('#B22A24', 0.9), podium, [x, 0.01, z + 0.35]); carpet.castShadow = false; }
     // golden machine: a column of light, a spinning gold coin and a ring on the floor
     goldFx = new T.Group(); goldFx.visible = false; scene.add(goldFx);
     const beam = new T.Mesh(new T.CylinderGeometry(0.75, 1.0, 6, 24, 1, true), new T.MeshBasicMaterial({ color: '#FFC93C', transparent: true, opacity: 0.16, depthWrite: false, side: T.DoubleSide, blending: T.AdditiveBlending }));
@@ -261,17 +279,34 @@
       const x = w0[0] + (v ? v.x : 0), y = w0[1] + (v ? v.y : 0), z = w0[2] + (v ? v.z : 0);
       const shake = p.ft >= 90 ? Math.sin(TT * 55) * 0.02 : 0;
       c.group.position.set(x + shake, y, z);
-      if (p.st) { c.group.rotation.set(-1.25, -a.ang + a.spin, 0); c.group.position.y = y + 0.35; c.pose(G.POSE.stand(0, 0)); }
+      if (S.st === 'final') {
+        // end of the match: top three on the podium, everyone else clapping
+        const place = S.res && S.res.table ? S.res.table.findIndex(q => q.id === p.id) : -1, q = SH.PODIUM[place];
+        const onPod = q && Math.hypot(pos.x - q.x, pos.y - q.y) < 14;
+        c.group.position.y = y + (onPod ? q.h : 0); c.group.rotation.set(0, -Math.PI, 0);
+        c.pose(G.POSE.stand(0, 0, place === 0 ? { cheer: TT } : place > 0 && place < 3 ? { cheer: TT * 0.6 + place } : { clap: TT + p.id }));
+      } else if (p.st) { c.group.rotation.set(-1.25, -a.ang + a.spin, 0); c.group.position.y = y + 0.35; c.pose(G.POSE.stand(0, 0)); }
       else { c.group.rotation.set(0, -a.ang, 0); c.pose(G.POSE.stand(a.ph, Math.min(1, a.spd), p.lo ? { crossed: true } : null)); }
       c.setEffort(0); c.setFat(p.ft);
       c.group.visible = pos.x < 1900 || upVisible;
       const r = rings[p.id]; r.track.scale.setScalar(1); r.ring.scale.setScalar(1);
       r.track.position.set(x, y + 0.04, z); r.ring.position.set(x, y + 0.045, z);
     });
+    // crown: on the match leader during rounds 2 and 3, and on the winner at the end
+    const cid = ctx.crownId;
+    if (crown) { const c = cid != null && chars[cid];
+      crown.visible = !!(c && c.group.visible);
+      if (crown.visible) { const head = c.parts.head; if (crown.parent !== head) head.add(crown);
+        const big = S.st === 'final'; crown.position.set(0, 0.2 + (big ? Math.sin(TT * 3) * 0.02 : 0), 0); crown.rotation.set(0.12, big ? TT * 0.8 : 0, 0); crown.scale.setScalar(big ? 1.15 : 0.95); } }
+    if (podium) podium.visible = S.st === 'final';
+    if (S.st === 'final' && puffTex && Math.random() < 0.9) {
+      const [x, , z] = G.map3(640, 845), cols = ['#FFC93C', '#FF5FC8', '#3FB6F5', '#2FBF71', '#FF8A2B', '#FFFFFF'];
+      for (let n = 0; n < 2; n++) puff(V().set(x + (Math.random() - 0.5) * 5, 4.5 + Math.random(), z + (Math.random() - 0.5) * 3), V().set((Math.random() - 0.5) * 0.8, -0.6 - Math.random() * 0.6, (Math.random() - 0.5) * 0.8), { col: cols[(Math.random() * cols.length) | 0], life: 3.2, a: 1, r0: 0.09, r1: 0.07, drag: 0.6, rise: -0.4 });
+    }
     S.p.forEach(p => {
       const r = rings[p.id]; if (!r) return;
       const vis = chars[p.id] && chars[p.id].group.visible;
-      r.track.visible = r.ring.visible = !!vis;
+      r.track.visible = r.ring.visible = !!vis && S.st !== 'final';
       r.ring.geometry.setDrawRange(0, Math.floor(Math.min(p.ft, 100) / 100 * 48) * 6);
       setCol(r.ring.material.color, fatHue(p.ft));
       r.ring.material.opacity = p.ft >= 90 ? 0.45 + 0.55 * Math.abs(Math.sin(TT * 9)) : 1;
@@ -364,6 +399,13 @@
       const pS = [tx - fx * back, ty + hgt, tz - fz * back], tS = [tx + fx * ahead, ty + 0.8 + pit * 0.6, tz + fz * ahead];
       pD = pT.map((v, i) => v + (pS[i] - v) * w); tD = tT.map((v, i) => v + (tS[i] - v) * w);
       fov = 42 + ((portrait ? 70 : 60) - 42) * w;
+    }
+    if (S.st === 'final') {
+      // celebration: swing slowly around the podium
+      const [x, , z] = G.map3(640, 845), a = -0.35 + Math.sin(TT * 0.22) * 0.35, R = portrait ? 8.5 : 6.4;   // stays west of the reception desk
+      const side = portrait || W < 800 ? 0 : 2.3;      // wide screens: leaderboard on the right, podium on the left
+      pD = [x + Math.sin(a) * R + Math.cos(a) * side, portrait ? 3.6 : 2.9, z + Math.cos(a) * R - Math.sin(a) * side];
+      tD = [x + Math.cos(a) * side, portrait ? 0.2 : 0.95, z + 0.6 - Math.sin(a) * side]; fov = portrait ? 64 : 52;
     }
     if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
     const k = first ? 1 : 1 - Math.exp(-dt * 10); first = false;

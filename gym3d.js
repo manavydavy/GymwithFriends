@@ -288,6 +288,17 @@
     stand(ph, spd, opts) {
       spd = spd || 0; const s = Math.sin(ph || 0) * spd, b = Math.abs(Math.sin(ph || 0)) * spd;
       const crossed = opts && opts.crossed;
+      if (opts && opts.cheer !== undefined) {       // arms up, pumping (match winner)
+        const t = opts.cheer, up = 0.5 + 0.5 * Math.sin(t * 7), hop = Math.max(0, Math.sin(t * 7)) * 0.05;
+        return { pelvis: [0, 0.9 + hop, 0], chest: [0, 1.43 + hop, 0.02], front: [0, 0.15, -1],
+          feet: [[-0.13, 0.07, 0], [0.13, 0.07, 0]],
+          hands: [[-0.36, 1.9 + up * 0.22 + hop, -0.05], [0.36, 1.9 + (1 - up) * 0.22 + hop, -0.05]], elbowPole: [[-1, -0.2, 0.3], [1, -0.2, 0.3]] };
+      }
+      if (opts && opts.clap !== undefined) {        // clapping for the winner
+        const c = Math.abs(Math.sin(opts.clap * 9)) * 0.09;
+        return { pelvis: [0, 0.9, 0], chest: [0, 1.42, 0], front: [0, 0, -1], feet: [[-0.12, 0.07, 0], [0.12, 0.07, 0]],
+          hands: [[-0.03 - c, 1.3, -0.32], [0.03 + c, 1.3, -0.32]], elbowPole: [[-1, -0.6, 0.2], [1, -0.6, 0.2]] };
+      }
       return {
         pelvis: [0, 0.9 + b * 0.03, 0], chest: [0, 1.42 + b * 0.03, -0.02 * spd], front: [0, 0, -1],
         feet: [[-0.12, 0.07 + Math.max(0, s) * 0.08, -s * 0.28], [0.12, 0.07 + Math.max(0, -s) * 0.08, s * 0.28]],
