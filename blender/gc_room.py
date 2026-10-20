@@ -1,4 +1,4 @@
-# Gym Colonisers: rebuilds the gym building in Blender and bakes its lighting.
+# Gym with Friends: rebuilds the gym building in Blender and bakes its lighting.
 # Needs gc_build.py loaded as module 'gclib' (and the machines built, so they can cast soft shadows).
 # Outputs: room.glb (walls, stairs, lockers, desk, props: rounded edges + baked ambient occlusion)
 #          floor_ao.jpg (soft contact shadows for the textured ground floor, mapped over the whole floor)
@@ -117,6 +117,22 @@ def build_room(spec, bake=True):
             _cone(od['bm'], s)
         else:
             G.prim(od['bm'], s)
+    # props modelled in Blender (gc_props.py), placed where the game's stand-ins are
+    import gcprops as GP
+    for e in spec.get('extras', []):
+        od = owners.setdefault(e['owner'], {'bm': bmesh.new(), 'mats': []})
+        M = G.C @ G.m4(e['m'])
+        for (mat, pbm) in GP.make(e['k']):
+            k = G.mat_key(mat)
+            if k not in mats:
+                mats[k] = G.material(k, mat)
+            if k not in od['mats']:
+                od['mats'].append(k)
+            bmesh.ops.transform(pbm, matrix=M, verts=pbm.verts)
+            me = bpy.data.meshes.new('tmp'); pbm.to_mesh(me); pbm.free()
+            for f in me.polygons:
+                f.material_index = od['mats'].index(k)
+            od['bm'].from_mesh(me); bpy.data.meshes.remove(me)
     objs = []
     for ow, od in owners.items():
         me = bpy.data.meshes.new('room_' + ow)

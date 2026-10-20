@@ -13,9 +13,15 @@ R.updateMatrixWorld(true);
 const all = []; R.traverse(o => all.push(o));
 const roomShape = o => o.isMesh && o.material && o.material.isMeshStandardMaterial && !o.material.map && !o.material.transparent && !(o.material.emissive && o.material.emissive.getHex());
 const inUp = o => { for (let p = o; p; p = p.parent) if (p === up) return true; return false; };
-const shapes = [], removed = [];
+const shapes = [], removed = [], extras = [];
+// Stand-ins for the props modelled in Blender (userData.extra): their plain shapes are removed, and Blender
+// builds its own model at the stand-in's spot instead.
+const extraOf = o => { for (let p = o; p && p !== R; p = p.parent) if (p.userData.extra) return p; return null; };
+all.forEach(o => { if (o.userData.extra) { const base = inUp(o) ? up : R; const rel = new T.Matrix4().copy(base.matrixWorld).invert().multiply(o.matrixWorld);
+  extras.push({ k: o.userData.extra, owner: base === up ? 'up' : 'room', m: rel.elements.map(x => +x.toFixed(5)) }); } });
 all.forEach((o, i) => {
   if (!roomShape(o)) return;
+  if (extraOf(o)) { removed.push(i); return; }
   const owner = inUp(o) ? 'up' : 'room';
   const base = owner === 'up' ? up : R;
   const rel = new T.Matrix4().copy(base.matrixWorld).invert().multiply(o.matrixWorld);
@@ -27,4 +33,4 @@ const manPath = path.join(__dirname, '..', 'models', 'machines.json');
 const man = JSON.parse(fs.readFileSync(manPath, 'utf8'));
 man.__room = Object.assign({}, man.__room || {}, { count: all.length, removed, owners: ['room', 'up'] });
 fs.writeFileSync(manPath, JSON.stringify(man));
-process.stdout.write(JSON.stringify({ count: all.length, shapes }));
+process.stdout.write(JSON.stringify({ count: all.length, shapes, extras }));

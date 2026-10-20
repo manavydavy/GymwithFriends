@@ -116,7 +116,8 @@
   const DECOR = [
     { k: 'plyo', x: 470, y: 1052, w: 80, h: 44 }, { k: 'tree', x: 600, y: 1050, w: 56, h: 50 },
     { k: 'tree', x: 990, y: 28, w: 60, h: 60 }, { k: 'bench', x: 1095, y: 560, w: 40, h: 110 },
-    { k: 'tree', x: 1730, y: 300, w: 56, h: 56 }, { k: 'tree', x: 2652, y: 250, w: 46, h: 46 }
+    { k: 'tree', x: 1730, y: 300, w: 56, h: 56 }, { k: 'tree', x: 2652, y: 250, w: 46, h: 46 },
+    { k: 'vending', x: 1106, y: 805, w: 44, h: 50 }, { k: 'bag', x: 340, y: 880, w: 56, h: 56 }, { k: 'sign', x: 220, y: 1014, w: 18, h: 18 }
   ];
   const SOLIDS = [...MACH, ...TREADS, DESK, ...WALLS, ...DECOR];
   const REST = [

@@ -602,6 +602,7 @@ wss.on('connection', ws => {
       ev(r, { k: 'ban', s: p.n + ' walked in', c: '#8FB6FF' });
       return;
     }
+    if (d.t === 'tp' && process.env.GC_DEBUG && typeof d.x === 'number' && typeof d.y === 'number') { p.x = d.x; p.y = d.y; p.lastPos = Date.now(); }   // screenshots only
     if (d.t === 'pos') { p.sprintT = d.s ? 0.3 : 0; movePlayer(r, p, d.x, d.y); }
     else if (d.t === 'act') act(r, p, String(d.a));
     else if (d.t === 'rep') rep(r, p, d.q);

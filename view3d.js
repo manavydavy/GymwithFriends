@@ -23,7 +23,7 @@
     }
     return max;
   }
-  let upVisible = true, first = true, restMats = [], cone = null, puffTex = null, goldFx = null, goldArrow = null, preFx = null;
+  let shell = null, upVisible = true, first = true, restMats = [], cone = null, puffTex = null, goldFx = null, goldArrow = null, preFx = null;
   const puffs = [], pool = [];
   function puff(pos, vel, o) {
     let s = pool.pop();
@@ -101,7 +101,7 @@
     key.shadow.bias = -0.0006; key.shadow.normalBias = 0.02; scene.add(key);
     if (REAL) G.LINEAR = true;   // models load their baked colours in linear space
     await G.loadAssets();
-    const room = G.buildRoom(scene, SH); up = room.up; restMats = room.restMats;
+    const room = G.buildRoom(scene, SH); up = room.up; restMats = room.restMats; shell = G.buildShell(scene);
     const hlMat = new T.MeshBasicMaterial({ color: '#FFC93C', transparent: true, opacity: 0.8, depthWrite: false });
     machines = SH.MACH.map(m => {
       const b = G.buildMachine(m, SH.GROUPS[m.g].c); (m.x >= 1900 ? up : scene).add(b.g);
@@ -344,6 +344,7 @@
     camTgt.x += (tD[0] - camTgt.x) * k; camTgt.y += (tD[1] - camTgt.y) * k; camTgt.z += (tD[2] - camTgt.z) * k;
     camera.position.set(camPos.x, camPos.y, camPos.z);
     camera.lookAt(camTgt.x, camTgt.y, camTgt.z);
+    G.shellUpdate(shell, camera.position);
     renderer.render(scene, camera);
     window.__calls = renderer.info.render.calls;
   }
