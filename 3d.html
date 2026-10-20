@@ -58,7 +58,7 @@ scene.add(key);
 [[-11,3.2,4],[0,3.2,0],[8,3.2,-6],[7,3.2,6],[-11,6.6,-6]].forEach(p=>{const l=new T.PointLight('#FFD9A8',0.28,15,2);l.position.set(...p);scene.add(l)});
 
 G3.loadAssets().then(()=>{
-const {up}=G3.buildRoom(scene,SH);
+const {up}=G3.buildRoom(scene,SH);const shell=G3.buildShell(scene);
 
 // machines with someone on each
 const crewCols=SH.COLOURS;const machines=[];
@@ -124,6 +124,7 @@ function showMachine(i){idx=(i+machines.length)%machines.length;const m=machines
 up.visible=m.upstairs||!(p.x<G3.map3(700,0)[0]+0.5&&p.z<G3.map3(0,520)[2]);document.getElementById('name').textContent=m.def.name+(m.upstairs?' · upstairs':'');setOn(null);
 fly(new V3(p.x+2.4,p.y+(narrow()?3.6:2.9),p.z+(narrow()?5.2:4.2)),new V3(p.x,p.y+0.85,p.z))}
 // for screenshots: jump straight to a machine by name
+window.__view=(p,t)=>{camera.position.set(...p);controls.target.set(...t);view.pos.copy(camera.position);view.tgt.copy(controls.target);flying=0;controls.update()};
 window.__jump=n=>{const i=machines.findIndex(m=>m.def.name===n);if(i<0)return false;showMachine(i);camera.position.copy(view.pos);controls.target.copy(view.tgt);flying=0;controls.update();return true};
 document.getElementById('next').onclick=()=>showMachine(idx+1);
 document.getElementById('prev').onclick=()=>showMachine(idx-1);
@@ -146,7 +147,7 @@ machines.forEach(m=>{if((!m.upstairs||up.visible)&&Math.random()<dt*0.6&&(m.off*
 for(let i=puffs.length-1;i>=0;i--){const p=puffs[i];p.life-=dt;p.s.position.addScaledVector(p.v,dt);p.s.scale.setScalar(0.25+(1.2-p.life)*0.5);p.s.material.opacity=Math.max(0,p.life/1.2*.7);if(p.life<=0){scene.remove(p.s);puffs.splice(i,1)}}
 for(let i=drops.length-1;i>=0;i--){const d=drops[i];d.life-=dt;d.v.y-=6*dt;d.d.position.addScaledVector(d.v,dt);if(d.life<=0){scene.remove(d.d);drops.splice(i,1)}}
 if(flying>0){flying-=dt;const k=Math.min(1,dt*3.2);camera.position.lerp(view.pos,k);controls.target.lerp(view.tgt,k)}
-controls.update();renderer.render(scene,camera)}
+controls.update();G3.shellUpdate(shell,camera.position);renderer.render(scene,camera)}
 document.getElementById('load').remove();frame();
 });
 </script>

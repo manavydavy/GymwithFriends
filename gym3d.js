@@ -910,14 +910,128 @@
     mesh(new T.TorusGeometry(0.07, 0.018, 6, 12, Math.PI), std(col || '#2B2F38', 0.5, 0.3), g, [0, 0.2, 0]);
     return g;
   }
+  // Drinks behind the glass of the vending machine
+  let vendCv = null;
+  function vendTex() {
+    if (!vendCv) {
+      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 512; const x = cv.getContext('2d');
+      const gr = x.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, '#34404D'); gr.addColorStop(1, '#161B21'); x.fillStyle = gr; x.fillRect(0, 0, 256, 512);
+      const cols = ['#E2544B', '#2F6FE0', '#FFC93C', '#2FBF71', '#B07CFF', '#FF8A2B'];
+      for (let r = 0; r < 5; r++) {
+        const y0 = 12 + r * 99; x.fillStyle = '#9AA3AD'; x.fillRect(6, y0 + 84, 244, 5);
+        for (let c = 0; c < 5; c++) {
+          const c0 = 16 + c * 47, col = cols[(r * 2 + c) % cols.length];
+          x.fillStyle = col;
+          if (r % 2) { x.fillRect(c0, y0 + 26, 32, 58); x.fillStyle = '#DDE3EA'; x.fillRect(c0 + 3, y0 + 21, 26, 6); x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(c0 + 4, y0 + 30, 5, 50); }
+          else { x.beginPath(); x.moveTo(c0 + 10, y0 + 6); x.lineTo(c0 + 22, y0 + 6); x.lineTo(c0 + 22, y0 + 22); x.lineTo(c0 + 32, y0 + 36); x.lineTo(c0 + 32, y0 + 84); x.lineTo(c0, y0 + 84); x.lineTo(c0, y0 + 36); x.lineTo(c0 + 10, y0 + 22); x.fill();
+            x.fillStyle = '#F4F1EA'; x.fillRect(c0 + 2, y0 + 50, 28, 15); x.fillStyle = 'rgba(255,255,255,.3)'; x.fillRect(c0 + 4, y0 + 38, 4, 44); }
+          x.fillStyle = '#FFC93C'; x.font = '700 12px Inter, Arial, sans-serif'; x.textAlign = 'center'; x.fillText('$' + (3 + ((r + c) % 4)), c0 + 16, y0 + 98);
+        }
+      }
+      x.fillStyle = 'rgba(255,255,255,.07)'; x.beginPath(); x.moveTo(60, 0); x.lineTo(130, 0); x.lineTo(30, 512); x.lineTo(-40, 512); x.fill();
+      vendCv = cv;
+    }
+    return new T.CanvasTexture(vendCv);
+  }
+  // ---------- the inside of the shell: ceiling and shopfront ----------
+  // Only drawn when the camera is inside the building below them (behind-you camera), so the overhead
+  // camera still sees straight down into the gym. shellUpdate() switches them every frame.
+  function deckTexture() {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256; const x = cv.getContext('2d');
+    x.fillStyle = '#4A4F58'; x.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 8; i++) { const g = x.createLinearGradient(i * 32, 0, i * 32 + 32, 0); g.addColorStop(0, '#3C4048'); g.addColorStop(0.3, '#5F6570'); g.addColorStop(0.55, '#565C66'); g.addColorStop(1, '#383C44'); x.fillStyle = g; x.fillRect(i * 32, 0, 32, 256); }
+    x.fillStyle = 'rgba(0,0,0,.25)'; x.fillRect(0, 127, 256, 2);
+    const t = new T.CanvasTexture(cv); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(36 / 2.4, 22 / 4.8); t.anisotropy = 4; return t;
+  }
+  function streetTexture() {
+    const W = 2048, H = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const x = cv.getContext('2d');
+    let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const sky = x.createLinearGradient(0, 0, 0, H * 0.7); sky.addColorStop(0, '#8EC5E8'); sky.addColorStop(1, '#DCEFF7'); x.fillStyle = sky; x.fillRect(0, 0, W, H);
+    // buildings across the road
+    let bx = -20;
+    while (bx < W) {
+      const bw = 120 + rnd() * 160, bh = 190 + rnd() * 200, col = ['#C8B8A2', '#A7B3BF', '#D9C9B4', '#B58F7A', '#9FA9A0', '#E1D6C6'][(rnd() * 6) | 0];
+      x.fillStyle = col; x.fillRect(bx, H * 0.86 - bh, bw, bh);
+      x.fillStyle = 'rgba(40,60,80,.55)';
+      for (let wy = H * 0.86 - bh + 18; wy < H * 0.86 - 70; wy += 36) for (let wx = bx + 12; wx < bx + bw - 26; wx += 30) x.fillRect(wx, wy, 18, 22);
+      x.fillStyle = 'rgba(0,0,0,.12)'; x.fillRect(bx + bw - 8, H * 0.86 - bh, 8, bh);
+      // shopfront awning
+      x.fillStyle = ['#2F8F8A', '#D9483B', '#2F6FE0', '#FFC93C'][(rnd() * 4) | 0]; x.fillRect(bx + 6, H * 0.86 - 62, bw - 12, 14);
+      x.fillStyle = 'rgba(30,40,50,.6)'; x.fillRect(bx + 14, H * 0.86 - 46, bw - 28, 46);
+      bx += bw + 4;
+    }
+    // street trees
+    for (let i = 0; i < 9; i++) { const tx = 80 + i * 235 + rnd() * 40; x.fillStyle = '#6B4B3A'; x.fillRect(tx - 5, H * 0.72, 10, H * 0.17);
+      x.fillStyle = i % 2 ? '#4F8F4A' : '#5DA052'; x.beginPath(); x.arc(tx, H * 0.66, 46, 0, 7); x.arc(tx - 30, H * 0.71, 32, 0, 7); x.arc(tx + 30, H * 0.71, 32, 0, 7); x.fill(); }
+    x.fillStyle = '#B9BDC2'; x.fillRect(0, H * 0.86, W, H * 0.14);       // far footpath
+    x.fillStyle = '#8E9399'; x.fillRect(0, H * 0.86, W, 4);
+    // parked cars along the far kerb
+    for (let i = 0; i < 7; i++) { const c0 = 60 + i * 290 + rnd() * 80, b0 = H * 0.86 + 6, cc = ['#E2544B', '#F4F1EA', '#2F6FE0', '#2B2F38', '#FFC93C', '#9AA3AD', '#2FA05A'][i];
+      x.fillStyle = cc; x.beginPath(); x.moveTo(c0, b0); x.lineTo(c0, b0 - 24); x.lineTo(c0 + 22, b0 - 27); x.lineTo(c0 + 38, b0 - 44); x.lineTo(c0 + 88, b0 - 44); x.lineTo(c0 + 107, b0 - 27); x.lineTo(c0 + 126, b0 - 24); x.lineTo(c0 + 126, b0); x.fill();
+      x.fillStyle = 'rgba(120,170,200,.9)'; x.beginPath(); x.moveTo(c0 + 28, b0 - 28); x.lineTo(c0 + 42, b0 - 40); x.lineTo(c0 + 84, b0 - 40); x.lineTo(c0 + 99, b0 - 28); x.fill();
+      x.fillStyle = '#15171C'; [c0 + 26, c0 + 100].forEach(wx => { x.beginPath(); x.arc(wx, b0, 10, 0, 7); x.fill(); }); }
+    const t = new T.CanvasTexture(cv); t.anisotropy = 4; return t;
+  }
+  function buildShell(scene) {
+    const X = x => (x - 900) * SCALE, Z = y => (y - 550) * SCALE, zf = Z(1105);
+    const sh = { ceil: new T.Group(), front: new T.Group(), frontZ: zf - 0.3 };
+    scene.add(sh.ceil); scene.add(sh.front);
+    const noShadow = g => g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+    // ceiling: steel deck facing down, I-beams, ducts, sprinkler line, hanging LED battens
+    const C = sh.ceil, beamM = std('#3A3F4B', 0.5, 0.45), ductM = std('#B8BEC6', 0.38, 0.65), darkM = std('#2B2F38', 0.6, 0.3);
+    mesh(new T.PlaneGeometry(36.4, 22.6), new T.MeshStandardMaterial({ map: deckTexture(), roughness: 0.75, metalness: 0.25, emissive: '#1D2026' }), C, [0, WALL_H - 0.02, 0.05], [Math.PI / 2, 0, 0]);
+    for (let x = -16; x <= 16.01; x += 4) {
+      box(0.16, 0.5, 22.3, beamM, C, [x, WALL_H - 0.3, 0.05]); box(0.34, 0.05, 22.3, beamM, C, [x, WALL_H - 0.53, 0.05]); box(0.34, 0.05, 22.3, beamM, C, [x, WALL_H - 0.06, 0.05]);
+      [-11.05, 11.15].forEach(z => box(0.5, 0.6, 0.06, beamM, C, [x, WALL_H - 0.35, z]));
+    }
+    [[Z(140), 0.42], [Z(820), 0.36]].forEach(([z, r]) => {
+      const y = WALL_H - 0.75;
+      mesh(cylG(r, r, 36.2, 20), ductM, C, [0, y, z], [0, 0, Math.PI / 2]);
+      for (let x = -15; x <= 15.01; x += 3) { mesh(cylG(r + 0.025, r + 0.025, 0.08, 20), ductM, C, [x, y, z], [0, 0, Math.PI / 2]); tube([x, y + r, z], [x, WALL_H - 0.55, z], 0.012, darkM, C); }
+      for (let x = -13.5; x <= 13.6; x += 6) { box(0.4, 0.12, 0.4, ductM, C, [x, y - r - 0.04, z]); box(0.34, 0.02, 0.34, darkM, C, [x, y - r - 0.105, z]); }
+    });
+    tube([-18, WALL_H - 0.85, Z(480)], [18, WALL_H - 0.85, Z(480)], 0.03, std('#C9372C', 0.5), C);
+    for (let x = -15; x <= 15.01; x += 3) mesh(cylG(0.025, 0.04, 0.07, 8), M.chrome(), C, [x, WALL_H - 0.92, Z(480)]);
+    const ledM = new T.MeshStandardMaterial({ color: '#FFFFFF', emissive: '#FFF6E5', emissiveIntensity: 1.0, roughness: 0.3 });
+    [Z(300), Z(620), Z(950)].forEach(z => { for (let x = -15; x <= 15.01; x += 5) {
+      const y = WALL_H - 1.0; box(1.7, 0.07, 0.24, darkM, C, [x, y, z]); box(1.6, 0.02, 0.17, ledM, C, [x, y - 0.04, z]);
+      [-0.7, 0.7].forEach(dx => tube([x + dx, y + 0.03, z], [x + dx, WALL_H - 0.55, z], 0.006, darkM, C)); } });
+    // shopfront: windows over the low front wall, glass doors, the street outside
+    const F = sh.front, alu = std('#A3ACB6', 0.35, 0.7), wallM = std('#EFE3CF', 0.9), top = 3.3;
+    box(36.2, WALL_H - top, 0.2, wallM, F, [0, top + (WALL_H - top) / 2, zf + 0.1]);
+    box(36.2, 0.16, 0.26, std('#2F8F8A', 0.85), F, [0, top + 0.08, zf + 0.06]); box(36.2, 0.05, 0.28, std('#FF8A2B', 0.7), F, [0, top + 0.18, zf + 0.06]);
+    box(36.2, 0.1, 0.16, alu, F, [0, top - 0.05, zf]); box(36.2, 0.06, 0.16, alu, F, [0, 0.62, zf]);
+    for (let x = 0; x <= 1800; x += 90) { if (x > 1040 && x < 1120) continue; box(0.07, top - 0.62, 0.14, alu, F, [X(x), (top + 0.62) / 2, zf]); }
+    // entrance: glass doors with push bars
+    [1040, 1120].forEach(x => box(0.12, top, 0.18, alu, F, [X(x), top / 2, zf]));
+    [1060, 1100].forEach((x, i) => { box(0.05, 2.3, 0.06, alu, F, [X(x) + (i ? 0.78 : -0.78), 1.15, zf]); box(0.05, 2.3, 0.06, alu, F, [X(x) + (i ? -0.78 : 0.78), 1.15, zf]); box(1.6, 0.06, 0.06, alu, F, [X(x), 2.3, zf]); box(1.6, 0.12, 0.06, alu, F, [X(x), 0.06, zf]); tube([X(x) - 0.5, 1.05, zf - 0.08], [X(x) + 0.5, 1.05, zf - 0.08], 0.02, M.chrome(), F); });
+    sign(F, [{ t: 'THANKS FOR COMING', size: 90, c: '#15171C' }, { t: 'now get back in here', size: 54, c: '#15171C', weight: '700' }], 3.2, 0.8, [X(1080), 4.0, zf - 0.005], [0, Math.PI, 0], { bg: '#FFC93C' });
+    const winM = new T.MeshStandardMaterial({ color: '#BFE6F5', emissive: '#87C5DF', emissiveIntensity: 0.55, roughness: 0.2 });
+    [150, 450, 1350, 1650].forEach(x => box(2.4, 1.0, 0.04, winM, F, [X(x), 7.7, zf - 0.02]));
+    const glass = mesh(new T.PlaneGeometry(36.2, top - 0.62), new T.MeshStandardMaterial({ color: '#CFE8F2', roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.12, depthWrite: false }), F, [0, (top + 0.62) / 2, zf + 0.01], [0, Math.PI, 0]);
+    // outside: footpath, kerb, road and the street across it
+    const ground = (w, d, z, c, y) => mesh(new T.PlaneGeometry(w, d), std(c, 0.95), F, [0, y || 0, z], [-Math.PI / 2, 0, 0]);
+    ground(70, 3.2, zf + 1.7, '#B9BDC2', -0.01); ground(70, 0.2, zf + 3.4, '#8E9399', 0.06); ground(70, 7, zf + 7, '#3D4148', -0.02);
+    for (let x = -33; x < 34; x += 6) box(3, 0.005, 0.15, std('#E8E2C8', 0.7), F, [x, -0.01, zf + 7]);
+    const st = mesh(new T.PlaneGeometry(70, 17.5), new T.MeshBasicMaterial({ map: streetTexture(), fog: false }), F, [0, 6.2, zf + 10.5], [0, Math.PI, 0]);
+    noShadow(C); noShadow(F);
+    mergeStatic(C); mergeStatic(F);
+    sh.ceil.visible = sh.front.visible = false;
+    return sh;
+  }
+  function shellUpdate(sh, cam) {
+    if (!sh) return;
+    sh.ceil.visible = cam.y < CEIL_LOW;
+    sh.front.visible = cam.z < sh.frontZ;
+  }
   // ---------- the gym building (two floors) ----------
-  const ELEV = 3.6;
+  const ELEV = 3.6, WALL_H = 9.6, CEIL_LOW = 8.5;
   function heightAt(x, y) { if (x >= 1900) return ELEV; if (x < 200 && y > 520 && y < 1000) return y <= 570 ? ELEV : (1000 - y) / 430 * ELEV; return 0; }
   const map3 = (x, y) => { const [X, Z] = toWorld(x, y); return [X, heightAt(x, y), Z]; };
   function buildRoom(scene, sh, opts) {
     const R = new T.Group(); scene.add(R);
     const up = new T.Group(); R.add(up);
-    const X = x => (x - 900) * SCALE, Z = y => (y - 550) * SCALE, Wd = 36, Dp = 22, H1 = 3.4, H2 = 7.2;
+    const X = x => (x - 900) * SCALE, Z = y => (y - 550) * SCALE, Wd = 36, Dp = 22, H1 = 3.4, H2 = WALL_H;
     const wallM = std('#EFE3CF', 0.9), dado = std('#2F8F8A', 0.85), stripe = std('#FF8A2B', 0.7), skirt = std('#22252B', 0.8);
     // floor + tinted areas
     const fl = mesh(new T.PlaneGeometry(Wd, Dp), floorMaterial(Wd, Dp), R, [0, 0, 0], [-Math.PI / 2, 0, 0]); fl.castShadow = false;
@@ -939,6 +1053,7 @@
       box(len, Math.max(0.01, h - 1.12), th, wallM, g, [0, 1.12 + (h - 1.12) / 2, 0]);
       box(len, 1.04, th + 0.02, dado, g, [0, 0.56, 0]); box(len, 0.08, th + 0.04, stripe, g, [0, 1.1, 0]); box(len, 0.08, th + 0.04, skirt, g, [0, 0.04, 0]);
       box(len, 0.08, th + 0.06, std('#D9CCB5', 0.8), g, [0, h, 0]);
+      if (h > 5) { box(len, 0.14, th + 0.05, dado, g, [0, 3.45, 0]); box(len, 0.05, th + 0.06, stripe, g, [0, 3.56, 0]); }
       return g;
     }
     wall(0, -5, 1800, -5, H2); wall(-5, 0, -5, 1100, H2); wall(1805, 0, 1805, 1100, H2);
@@ -958,6 +1073,14 @@
         const g = group(R, [X(w.x + w.w / 2), 0, Z(w.y + w.h / 2)]), bw = w.w * SCALE, bd = w.h * SCALE;
         box(bw, 2.5, bd, std('#2A2F3A', 0.8), g, [0, 1.25, 0]); box(bw + 0.1, 0.1, bd + 0.1, std('#3A3F4B', 0.85), g, [0, 2.55, 0]);
         for (let i = 0; i < 3; i++) box(bw - 0.6, 0.06, 0.5, std('#4A5060', 0.7, 0.3), g, [0, 2.62, -bd / 2 + 2 + i * (bd - 4) / 2]);
+        // whatever got dumped on the locker room roof
+        const card = std('#C49A6C', 0.9), tape = std('#D9C9A3', 0.8);
+        [[-3.2, -2.4, 0.9, 0.6, 0.7, 0.2, 0], [-2.2, -2.7, 0.7, 0.5, 0.6, -0.3, 0], [-3.1, -2.45, 0.6, 0.42, 0.5, 0.12, 0.6], [2.9, -2.2, 0.8, 0.5, 0.6, 0.5, 0]].forEach(([x, z, bw2, bh, bd2, r, y0]) => {
+          const b = group(g, [x, 2.6 + y0, z], [0, r, 0]); box(bw2, bh, bd2, card, b, [0, bh / 2, 0]); box(bw2 + 0.006, 0.012, 0.09, tape, b, [0, bh + 0.002, 0]); });
+        ['#3F9E92', '#2F6FE0', '#E2544B'].forEach((c, i) => mesh(cylG(0.11, 0.11, 0.62, 14), std(c, 0.85), g, [2.4 + i * 0.05, 2.71 + (i === 2 ? 0.19 : 0), 3.9 + (i === 2 ? -0.11 : i * 0.22)], [0, 0, Math.PI / 2]));
+        for (let i = 0; i < 4; i++) mesh(cylG(0.225 - i * 0.03, 0.225 - i * 0.03, 0.05, 22), std(BUMPER[i + 1], 0.6), g, [3.4, 2.63 + i * 0.05, -4.1]);
+        treadmill(g, [-2.7, 2.6, 2.9]);
+        mesh(sphG(0.3, 14), std('#B07CFF', 0.5), g, [3.1, 2.66, 1.4], null, [1, 0.33, 1]);
         const lt = sign(g, [{ t: 'LOCKER ROOM', size: 150, c: 'rgba(255,255,255,.22)' }], 7, 1.75, [0, 2.66, 0], [-Math.PI / 2, 0, Math.PI / 2], { bg: 'none' }); lt.material.transparent = true;
         const doorA = std('#4E6E8E', 0.5, 0.2), doorB = std('#5A7C9C', 0.5, 0.2);
         for (let i = 0; i < Math.floor(bd / 0.42); i++) { box(0.03, 1.9, 0.38, i % 2 ? doorA : doorB, g, [-bw / 2 - 0.016, 1.05, -bd / 2 + 0.25 + i * 0.42]); box(0.03, 0.04, 0.12, M.chrome(), g, [-bw / 2 - 0.035, 1.05, -bd / 2 + 0.36 + i * 0.42]); }
@@ -969,19 +1092,37 @@
         for (let i = 0; i <= n; i++) { const px = vert ? x0 + w.w / 2 : x0 + w.w * i / n, py = vert ? w.y + w.h * i / n : w.y + w.h / 2; pts.push([X(px), upr ? ELEV : heightAt(px - 1, py), Z(py)]); }
         pts.forEach(p => tube(p, [p[0], p[1] + 1.0, p[2]], 0.025, M.chrome(), upr ? up : R));
         for (let i = 0; i < pts.length - 1; i++) { tube([pts[i][0], pts[i][1] + 1.0, pts[i][2]], [pts[i + 1][0], pts[i + 1][1] + 1.0, pts[i + 1][2]], 0.03, M.steel(), upr ? up : R);
+          if (!upr) [0.36, 0.68].forEach(f => tube([pts[i][0], pts[i][1] + f, pts[i][2]], [pts[i + 1][0], pts[i + 1][1] + f, pts[i + 1][2]], 0.014, M.steel(), R));
           if (upr) { const a = pts[i], b = pts[i + 1]; const gp = mesh(boxG(Math.max(0.02, Math.abs(b[0] - a[0])), 0.8, Math.max(0.02, Math.abs(b[2] - a[2]))), glass, up, [(a[0] + b[0]) / 2, ELEV + 0.5, (a[2] + b[2]) / 2]); gp.castShadow = false; } }
       }
     });
-    // staircase along the left wall, rising towards the back
-    const stepM = std('#8A5A30', 0.8), nose = std('#FFC93C', 0.6);
-    const steps = 20, sy0 = 1000, sy1 = 570, sd = (sy0 - sy1) / steps;
+    // staircase along the left wall, rising towards the back: concrete flight, oak treads with yellow
+    // nosing and grip tape, a steel stringer along the open side and a handrail on the wall
+    const stepM = std('#80858E', 0.92), tread = std('#B9824C', 0.62), nose = std('#FFC93C', 0.6), grip = std('#1C1E23', 0.95), stringer = std('#3A3F4B', 0.5, 0.45);
+    const steps = 20, sy0 = 1000, sy1 = 570, sd = (sy0 - sy1) / steps, sw = 200 * SCALE, rise = ELEV / steps, run = sd * SCALE;
     for (let i = 0; i < steps; i++) {
-      const h = (i + 1) * ELEV / steps, yc = sy0 - (i + 0.5) * sd;
-      box(200 * SCALE, h, sd * SCALE, stepM, R, [X(100), h / 2, Z(yc)]);
-      box(200 * SCALE, 0.02, 0.05, nose, R, [X(100), h + 0.005, Z(yc + sd / 2) - 0.03]);
+      const h = (i + 1) * rise, yc = sy0 - (i + 0.5) * sd, zf = Z(yc) + run / 2;
+      box(sw - 0.02, h - 0.045, run, stepM, R, [X(100), (h - 0.045) / 2, Z(yc)]);
+      box(sw - 0.04, 0.045, run + 0.035, tread, R, [X(100), h - 0.0225, Z(yc) + 0.0175]);
+      box(sw - 0.16, 0.02, 0.055, nose, R, [X(100), h + 0.008, zf + 0.004]);
+      box(sw - 0.36, 0.008, 0.04, grip, R, [X(100), h + 0.003, zf - 0.08]);
     }
-    box(200 * SCALE, ELEV, 50 * SCALE, stepM, R, [X(100), ELEV / 2, Z(545)]);
-    sign(R, [{ t: 'CHEST FLOOR ↑', size: 110, c: '#15171C' }], 1.8, 0.45, [X(212) + 0.12, 1.5, Z(1030)], [0, Math.PI / 2, 0], { bg: '#FFC93C' });
+    box(sw, ELEV - 0.04, 50 * SCALE, stepM, R, [X(100), (ELEV - 0.04) / 2, Z(545)]);
+    box(sw - 0.04, 0.045, 50 * SCALE, tread, R, [X(100), ELEV - 0.0205, Z(545)]);
+    box(sw - 0.16, 0.02, 0.055, nose, R, [X(100), ELEV + 0.008, Z(570) + 0.004]);
+    { const L = Math.hypot((sy0 - sy1) * SCALE, ELEV), a = Math.atan2(ELEV, (sy0 - sy1) * SCALE);
+      const sg = group(R, [X(200) + 0.02, ELEV / 2 + 0.02, Z((sy0 + sy1) / 2)], [a, 0, 0]);
+      box(0.1, 0.44, L + 0.5, stringer, sg); box(0.12, 0.05, L + 0.5, stringer, sg, [0, 0.215, 0]);
+      // wall handrail with brackets
+      const hx = X(0) + 0.09, rh = y => Math.max(0, (sy0 - y) / (sy0 - sy1) * ELEV) + rise + 0.9;
+      tube([hx, rh(1010), Z(1010)], [hx, rh(sy1), Z(sy1)], 0.024, M.steel(), R); tube([hx, rh(sy1), Z(sy1)], [hx, rh(sy1), Z(528)], 0.024, M.steel(), R);
+      for (let y = 980; y > 560; y -= 84) { tube([X(0), rh(y) - 0.07, Z(y)], [hx, rh(y) - 0.02, Z(y)], 0.012, M.steel(), R); box(0.02, 0.09, 0.07, M.steel(), R, [X(0) + 0.01, rh(y) - 0.07, Z(y)]); } }
+    // wayfinding sign on a stand at the foot of the stairs, angled to face the hall and the camera
+    { const st = group(R, [X(229), 0, Z(1023)], [0, Math.PI / 4, 0]);
+      box(0.46, 0.035, 0.28, M.frame(), st, [0, 0.018, 0]); sq([0, 0.03, 0], [0, 1.72, 0], 0.07, M.frame(), st);
+      box(1.48, 0.54, 0.05, M.frame(), st, [0, 1.98, 0]);
+      const lines = [{ t: 'CHEST FLOOR', size: 120, c: '#15171C' }, { t: 'up the stairs \u2191', size: 64, c: '#15171C', weight: '800' }];
+      sign(st, lines, 1.4, 0.46, [0, 1.98, 0.027], null, { bg: '#FFC93C' }); sign(st, lines, 1.4, 0.46, [0, 1.98, -0.027], [0, Math.PI, 0], { bg: '#FFC93C' }); }
     // mezzanine (upstairs) over the back-left of the ground floor
     const slabW = 700 * SCALE, slabD = 520 * SCALE;
     const slab = box(slabW, 0.3, slabD, std('#5A4E4A', 0.8), up, [X(350), ELEV - 0.15, Z(260)]);
@@ -1016,6 +1157,9 @@
     const winM = new T.MeshStandardMaterial({ color: '#BFE6F5', emissive: '#87C5DF', emissiveIntensity: 0.55, roughness: 0.2 });
     [150, 400, 650, 900].forEach(y => { const w = box(0.04, 1.2, 1.8, winM, R, [rwx - 0.02, 5.2, Z(y)]); w.castShadow = false; });
     [700, 900].forEach(y => { const w = box(0.04, 1.2, 1.8, winM, R, [X(0) + 0.03, 5.2, Z(y)]); w.castShadow = false; });
+    [200, 520, 1330, 1650].forEach(x => { const w = box(2.4, 1.1, 0.04, winM, R, [X(x), 7.7, Z(0) + 0.03]); w.castShadow = false; });
+    [150, 400, 650, 900].forEach(y => { const w = box(0.04, 1.0, 1.8, winM, R, [rwx - 0.02, 7.7, Z(y)]); w.castShadow = false; });
+    sign(R, [{ t: 'GAINS', size: 210, c: '#FFC93C' }, { t: 'LOADING...', size: 96, c: '#F4F1EA' }], 5.4, 2.1, [X(0) + 0.012, 7.5, Z(800)], [0, Math.PI / 2, 0], { bg: '#22252B' });
     box(0.08, 0.82, 1.4, M.black(), R, [rwx - 0.04, 2.3, Z(60) + 1.0]);
     sign(R, [{ t: 'GYM TV', size: 60, c: '#FFFFFF' }, { t: 'leg day highlights', size: 40, c: '#9BE89F', weight: '700' }], 1.3, 0.72, [rwx - 0.09, 2.3, Z(60) + 1.0], [0, -Math.PI / 2, 0], { bg: '#22324A' }, true);
     PROPS(R, up, sh);
@@ -1109,10 +1253,21 @@
     { const [a, , b] = map3(300, 0); cableRack(R, [a, 0, b + 0.06]); }
     [[1450, 0, 0], [1750, 0, 0], [980, 0, 0]].forEach(([x, y, r]) => { const [a, , b] = map3(x, y); wallFan(R, [a, 2.9, b + 0.02], r); });
     [[1790, 120, -Math.PI / 2], [10, 1080, Math.PI / 2]].forEach(([x, y, r]) => { const [a, , b] = map3(x, y); speaker(R, [a, 3.0, b], r); });
+    // Brand-new props modelled in Blender (blender/gc_props.py). The simple stand-ins below are what you
+    // see without the Blender room; with it, each stand-in is swapped for the real model at the same spot.
+    const ex = (par, k, mx, my, rot, stand) => { const [x, y3, z] = map3(mx, my); const g = group(par, [x, y3, z], [0, rot || 0, 0]); g.userData.extra = k; if (stand) stand(g); return g; };
+    const vend = ex(R, 'vending', 1128, 830, -Math.PI / 2, g => box(1.0, 1.9, 0.82, std('#D23A2F', 0.45, 0.2), g, [0, 1.0, -0.01]));
+    mesh(new T.PlaneGeometry(0.6, 1.08), new T.MeshStandardMaterial({ map: vendTex(), emissive: '#ffffff', emissiveMap: vendTex(), emissiveIntensity: 0.7, roughness: 0.15, metalness: 0.1 }), vend, [-0.14, 1.16, 0.405]).castShadow = false;
+    sign(vend, [{ t: 'ICE COLD GAINS', size: 130, c: '#FFFFFF' }], 0.94, 0.15, [0, 1.835, 0.426], null, { bg: '#D23A2F' }, true);
+    sign(vend, [{ t: 'INSERT $$$', size: 120, c: '#9BE89F' }], 0.17, 0.06, [0.34, 1.62, 0.446], null, { bg: '#0E1A22' }, true);
+    ex(R, 'bag', 368, 908, 0, g => { mesh(cylG(0.19, 0.19, 1.1, 16), std('#B22A24', 0.5), g, [0.12, 1.03, 0]); sq([-0.45, 0, 0], [-0.45, 2.4, 0], 0.08, M.frame(), g); sq([-0.49, 2.35, 0], [0.25, 2.35, 0], 0.07, M.frame(), g); box(1.1, 0.06, 0.9, M.frame(), g, [0, 0.03, 0]); });
+    ex(R, 'ropes', 712, 1080, Math.PI, g => { const rm = std('#3B3F46', 0.9); tube([-2.4, 0.02, 0.35], [0, 0.03, -0.3], 0.019, rm, g); tube([-1.6, 0.02, 0.55], [0, 0.03, -0.3], 0.019, rm, g); });
+    const bagStand = g => box(0.62, 0.28, 0.3, std('#24324A', 0.8), g, [0, 0.14, 0]);
+    ex(R, 'gymbag', 1132, 712, Math.PI / 2, bagStand); ex(up, 'gymbag', 2030, 330, Math.PI / 2, bagStand);
     const [lx, , lz] = map3(560, 560);
     const d1 = dumbbell(0.7, '#9C6ADE', R); d1.position.set(lx, 0.1, lz); d1.rotation.y = 0.8;
     const d2 = dumbbell(0.7, '#9C6ADE', R); d2.position.set(lx + 0.5, 0.1, lz + 0.2); d2.rotation.y = 2.2;
   }
 
-  out.G3 = { loadAssets, ASSETS, T, SCALE, toWorld, M, std, mesh, box, group, span, tube, sq, pad, plate, barbell, dumbbell, textTex, sign, makeChar, POSE, buildMachine, buildRoom, map3, heightAt, ELEV, SKINS, HAIRS, MB };
+  out.G3 = { loadAssets, ASSETS, T, SCALE, toWorld, M, std, mesh, box, group, span, tube, sq, pad, plate, barbell, dumbbell, textTex, sign, makeChar, POSE, buildMachine, buildRoom, buildShell, shellUpdate, map3, heightAt, ELEV, SKINS, HAIRS, MB };
 })(window);
