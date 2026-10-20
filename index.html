@@ -153,7 +153,9 @@ const KB=k=>TOUCH?'':' ('+k+')';
 // ---------- network state ----------
 let ws=null,myId=null,S=null,joined=false;
 const disp={};
-const ME={x:1300,y:650,phase:0,zc:.5,cd:0,on:null,tp:-1,lastSend:0,sx:0,sy:0};
+const ME={x:1300,y:650,phase:0,zc:.5,cd:0,on:null,tp:-1,lastSend:0,sx:0,sy:0,camYaw:-Math.PI/2};
+// Phones in 3D get an over-the-shoulder camera; the joystick then steers relative to where the camera looks
+const SHOULDER=()=>TOUCH&&VIEW3D&&window.V3D&&V3D.ready;
 let pops=[],parts=[],steam=[],dust=[],banner=null,hintMsg=null,seen={},cardKey='';
 const K=new Set(),JV={x:0,y:0},SPR={key:false,touch:false};
 const me=()=>S&&S.p.find(p=>p.id===myId);
@@ -324,7 +326,10 @@ ME.cd=Math.max(0,ME.cd-dt);
 ME.spr=false;
 if(m.lk){const k=Math.min(1,dt*15);ME.x+=(m.x-ME.x)*k;ME.y+=(m.y-ME.y)*k}
 else if(S.st==='playing'){let vx=(K.has('right')?1:0)-(K.has('left')?1:0)+JV.x,vy=(K.has('down')?1:0)-(K.has('up')?1:0)+JV.y;const l=Math.hypot(vx,vy);
-if(l>1){vx/=l;vy/=l}ME.spr=(SPR.key||SPR.touch)&&l>.2&&!m.lm&&m.ft<100;const sp=C.playerSpeed*(m.lm?.55:1)*(ME.spr?C.sprintMult:1);if(l){ME.x+=vx*sp*dt;ME.y+=vy*sp*dt}SH.collide(ME);
+if(l>1){vx/=l;vy/=l}
+if(SHOULDER()&&l>0){const f=ME.camYaw,fx=Math.cos(f),fy=Math.sin(f),nx=fx*(-vy)-fy*vx,ny=fy*(-vy)+fx*vx;vx=nx;vy=ny;
+const hd=Math.atan2(vy,vx),dd=SH.angDiff(hd,ME.camYaw);if(l>.3&&Math.abs(dd)<1.75)ME.camYaw+=dd*Math.min(1,dt*1.5*Math.min(1,l))}
+ME.spr=(SPR.key||SPR.touch)&&l>.2&&!m.lm&&m.ft<100;const sp=C.playerSpeed*(m.lm?.55:1)*(ME.spr?C.sprintMult:1);if(l){ME.x+=vx*sp*dt;ME.y+=vy*sp*dt}SH.collide(ME);
 ME.stairT=Math.max(0,(ME.stairT||0)-dt);{const st=ME.stairT<=0&&SH.stairAt(ME.x,ME.y);if(st){ME.x=st.to[0];ME.y=st.to[1];ME.stairT=.8;banner={t:st.floor?'Upstairs: chest floor':'Ground floor',c:'#BFE8FF',time:1.6}}}
 const now=performance.now();if(now-ME.lastSend>50&&(Math.abs(ME.x-ME.sx)>.3||Math.abs(ME.y-ME.sy)>.3)){send({t:'pos',x:Math.round(ME.x*10)/10,y:Math.round(ME.y*10)/10,s:ME.spr?1:0});ME.lastSend=now;ME.sx=ME.x;ME.sy=ME.y}}
 if(m.on!==null)ME.phase+=dt*C.markerSpeed*MACH[m.on].spd;
@@ -565,7 +570,7 @@ pops.forEach(p=>{cx.globalAlpha=Math.max(0,Math.min(1,p.a));const s=P(p.x,p.y,1.
 if(S.st==='playing'&&S.tm<20){cx.fillStyle='rgba(5,6,10,'+((20-S.tm)/20*.3)+')';cx.fillRect(0,0,VW,VH)}}
 function draw(){const m=me();
 if(VIEW3D&&window.V3D&&V3D.ready){cx.setTransform(DPR,0,0,DPR,0,0);cx.clearRect(0,0,VW,VH);if(!S)return;
-V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT,dt:DT,GA});drawLabels3D(m);}else{
+V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT,dt:DT,GA,cam:SHOULDER()?{yaw:ME.camYaw}:null});drawLabels3D(m);}else{
 const vw=VW/Z,vh=VH/Z,fl=SH.FLOORS[SH.floorOf(ME.x)];cam.x=fl.w<=vw?fl.x+(fl.w-vw)/2:Math.max(fl.x,Math.min(fl.x+fl.w-vw,ME.x-vw/2));const padB=TOUCH?vh*0.32:40;cam.y=fl.h+padB<=vh?fl.y+(fl.h-vh)/2:Math.max(-40,Math.min(fl.y+fl.h-vh+padB,ME.y-vh/2));
 cx.setTransform(DPR,0,0,DPR,0,0);cx.fillStyle='#2B303A';cx.fillRect(0,0,VW,VH);
 if(!S)return;

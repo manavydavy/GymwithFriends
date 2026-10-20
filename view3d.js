@@ -4,6 +4,17 @@
   let T, G, SH, renderer, scene, camera, up, glcv, hemi, key;
   let machines = [], chars = {}, rings = {}, staff, gaz, W = 800, H = 500;
   const camPos = { x: 0, y: 12, z: 10 }, camTgt = { x: 0, y: 1, z: 0 };
+  let shoulderOn = false;
+  // Over-the-shoulder camera (phones): how far back the camera can sit without ending up inside a wall
+  function boomLength(ME, yaw, max) {
+    const fl = SH.FLOORS[SH.floorOf(ME.x)], fx = Math.cos(yaw), fy = Math.sin(yaw);
+    for (let d = 0.3; d <= max + 1e-6; d += 0.3) {
+      const mx = ME.x - fx * d / 0.02, my = ME.y - fy * d / 0.02;
+      if (mx < fl.x + 8 || mx > fl.x + fl.w - 8 || my < fl.y + 8 || my > fl.y + fl.h - 8 ||
+        SH.WALLS.some(w => (w.t === 'wall' || w.t === 'lockers') && SH.inRect(mx, my, w))) return Math.max(0.6, d - 0.3);
+    }
+    return max;
+  }
   let upVisible = true, first = true, restMats = [], cone = null, puffTex = null, goldFx = null, goldArrow = null;
   const puffs = [], pool = [];
   function puff(pos, vel, o) {
@@ -135,7 +146,9 @@
     const { S, myId, ME, disp, an, liftOf, TT } = ctx;
     const me = S.p.find(p => p.id === myId);
     const myFloor = SH.floorOf(ME.x);
-    upVisible = myFloor === 1 || !(ME.x < 760 && ME.y < 590);
+    let camMap = null;
+    if (ctx.cam) { const portrait = H > W, b = boomLength(ME, ctx.cam.yaw, portrait ? 4.2 : 4.0); camMap = { b, x: ME.x - Math.cos(ctx.cam.yaw) * b / 0.02, y: ME.y - Math.sin(ctx.cam.yaw) * b / 0.02 }; }
+    upVisible = myFloor === 1 || !((ME.x < 760 && ME.y < 590) || (camMap && camMap.x < 760 && camMap.y < 590));
     up.visible = upVisible;
     const seen = new Set();
     // machines and the people on them
@@ -232,6 +245,21 @@
     // follow camera, angled like Overcooked
     const [tx, ty, tz] = G.map3(ME.x, ME.y);
     const portrait = H > W;
+    if (ctx.cam) {
+      // phones: behind and above your shoulder, wider lens, looking a little ahead of you
+      const yaw = ctx.cam.yaw, fx = Math.cos(yaw), fz = Math.sin(yaw), fov = portrait ? 70 : 60;
+      if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
+      const maxB = portrait ? 4.2 : 4.0, back = camMap.b, hgt = (portrait ? 3.9 : 3.3) + (maxB - back) * 0.45, ahead = (portrait ? 1.3 : 1.6) * back / maxB;
+      const k = first || !shoulderOn ? 1 : 0.18; first = false; shoulderOn = true;
+      camPos.x += (tx - fx * back - camPos.x) * k; camPos.y += (ty + hgt - camPos.y) * k; camPos.z += (tz - fz * back - camPos.z) * k;
+      camTgt.x += (tx + fx * ahead - camTgt.x) * k; camTgt.y += (ty + 0.8 - camTgt.y) * k; camTgt.z += (tz + fz * ahead - camTgt.z) * k;
+      camera.position.set(camPos.x, camPos.y, camPos.z);
+      camera.lookAt(camTgt.x, camTgt.y, camTgt.z);
+      renderer.render(scene, camera);
+      window.__calls = renderer.info.render.calls;
+      return;
+    }
+    if (shoulderOn) { shoulderOn = false; camera.fov = 42; camera.updateProjectionMatrix(); }
     const off = portrait ? [0, 11, 8] : [0, 8.2, 7.2];
     const k = first ? 1 : 0.12; first = false;
     camTgt.x += (tx - camTgt.x) * k; camTgt.y += (ty + 0.8 - camTgt.y) * k; camTgt.z += (tz - (portrait ? 1.4 : 0.6) - camTgt.z) * k;
