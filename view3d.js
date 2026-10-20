@@ -4,7 +4,7 @@
   let T, G, SH, renderer, scene, camera, up, glcv, hemi, key;
   let machines = [], chars = {}, rings = {}, staff, gaz, W = 800, H = 500;
   const camPos = { x: 0, y: 12, z: 10 }, camTgt = { x: 0, y: 1, z: 0 };
-  let shoulderOn = false, prMax = 1, prCur = 1, fpsT = 0, fpsN = 0;
+  let prMax = 1, prCur = 1, fpsT = 0, fpsN = 0;
   // Keep it smooth: drop the render resolution a notch when frames get slow, raise it again when there's headroom
   function adapt(dt) {
     fpsT += dt; fpsN++;
@@ -210,9 +210,9 @@
     const me = S.p.find(p => p.id === myId);
     const myFloor = SH.floorOf(ME.x);
     let camMap = null;
-    if (ctx.cam) { const portrait = H > W, b = boomLength(ME, ctx.cam.yaw, portrait ? 4.2 : 4.0); camMap = { b, x: ME.x - Math.cos(ctx.cam.yaw) * b / 0.02, y: ME.y - Math.sin(ctx.cam.yaw) * b / 0.02 }; }
+    if (ctx.cam && ctx.cam.w > 0) { const portrait = H > W, b = boomLength(ME, ctx.cam.yaw, portrait ? 4.2 : 4.0); camMap = { b, x: ME.x - Math.cos(ctx.cam.yaw) * b / 0.02, y: ME.y - Math.sin(ctx.cam.yaw) * b / 0.02 }; }
     // the mezzanine hides while you're underneath it, but stays put while you're high up the stairs (no pop on arrival)
-    upVisible = myFloor === 1 || G.heightAt(ME.x, ME.y) > 2.4 || !((ME.x < 760 && ME.y < 590) || (camMap && camMap.x < 760 && camMap.y < 590));
+    upVisible = myFloor === 1 || G.heightAt(ME.x, ME.y) > 2.4 || !((ME.x < 760 && ME.y < 590) || (camMap && ctx.cam.w > 0.5 && camMap.x < 760 && camMap.y < 590));
     up.visible = upVisible;
     const seen = new Set();
     // machines and the people on them
@@ -325,25 +325,24 @@
     const tw = G.map3(ME.x, ME.y), mv = ctx.vo && ctx.vo(ME);
     const tx = tw[0] + (mv ? mv.x : 0), ty = tw[1] + (mv ? mv.y : 0), tz = tw[2] + (mv ? mv.z : 0);
     const portrait = H > W;
-    if (ctx.cam) {
-      // phones: behind and above your shoulder, wider lens, looking a little ahead of you
-      const yaw = ctx.cam.yaw, fx = Math.cos(yaw), fz = Math.sin(yaw), fov = portrait ? 70 : 60;
-      if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
-      const maxB = portrait ? 4.2 : 4.0, back = camMap.b, hgt = (portrait ? 3.9 : 3.3) + (maxB - back) * 0.45, ahead = (portrait ? 1.3 : 1.6) * back / maxB;
-      const k = first || !shoulderOn ? 1 : 0.18; first = false; shoulderOn = true;
-      camPos.x += (tx - fx * back - camPos.x) * k; camPos.y += (ty + hgt - camPos.y) * k; camPos.z += (tz - fz * back - camPos.z) * k;
-      camTgt.x += (tx + fx * ahead - camTgt.x) * k; camTgt.y += (ty + 0.8 - camTgt.y) * k; camTgt.z += (tz + fz * ahead - camTgt.z) * k;
-      camera.position.set(camPos.x, camPos.y, camPos.z);
-      camera.lookAt(camTgt.x, camTgt.y, camTgt.z);
-      renderer.render(scene, camera);
-      window.__calls = renderer.info.render.calls;
-      return;
-    }
-    if (shoulderOn) { shoulderOn = false; camera.fov = 42; camera.updateProjectionMatrix(); }
+    // Two camera rigs, blended: overhead (angled like Overcooked) and behind-the-shoulder. ctx.cam.w (0..1, already
+    // eased) says how far between them we are; both the blend and a time-based follow keep every move smooth.
+    const w = ctx.cam ? ctx.cam.w : 0;
     const off = portrait ? [0, 11, 8] : [0, 8.2, 7.2];
-    const k = first ? 1 : 0.12; first = false;
-    camTgt.x += (tx - camTgt.x) * k; camTgt.y += (ty + 0.8 - camTgt.y) * k; camTgt.z += (tz - (portrait ? 1.4 : 0.6) - camTgt.z) * k;
-    camera.position.set(camTgt.x + off[0], camTgt.y + off[1], camTgt.z + off[2]);
+    const tT = [tx, ty + 0.8, tz - (portrait ? 1.4 : 0.6)], pT = [tT[0] + off[0], tT[1] + off[1], tT[2] + off[2]];
+    let pD = pT, tD = tT, fov = 42;
+    if (w > 0 && camMap) {
+      const yaw = ctx.cam.yaw, fx = Math.cos(yaw), fz = Math.sin(yaw);
+      const maxB = portrait ? 4.2 : 4.0, back = camMap.b, hgt = (portrait ? 3.9 : 3.3) + (maxB - back) * 0.45, ahead = (portrait ? 1.3 : 1.6) * back / maxB;
+      const pS = [tx - fx * back, ty + hgt, tz - fz * back], tS = [tx + fx * ahead, ty + 0.8, tz + fz * ahead];
+      pD = pT.map((v, i) => v + (pS[i] - v) * w); tD = tT.map((v, i) => v + (tS[i] - v) * w);
+      fov = 42 + ((portrait ? 70 : 60) - 42) * w;
+    }
+    if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    const k = first ? 1 : 1 - Math.exp(-dt * 10); first = false;
+    camPos.x += (pD[0] - camPos.x) * k; camPos.y += (pD[1] - camPos.y) * k; camPos.z += (pD[2] - camPos.z) * k;
+    camTgt.x += (tD[0] - camTgt.x) * k; camTgt.y += (tD[1] - camTgt.y) * k; camTgt.z += (tD[2] - camTgt.z) * k;
+    camera.position.set(camPos.x, camPos.y, camPos.z);
     camera.lookAt(camTgt.x, camTgt.y, camTgt.z);
     renderer.render(scene, camera);
     window.__calls = renderer.info.render.calls;

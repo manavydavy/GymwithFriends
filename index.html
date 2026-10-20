@@ -53,6 +53,11 @@ button{font:inherit;cursor:pointer}
 .award .v{font-size:13px;color:var(--muted)}
 .small{font-size:13px!important}
 .card.wide{max-width:820px}
+#camBtn{position:absolute;left:10px;bottom:10px;z-index:3;display:flex;align-items:center;gap:8px;font:700 13px Inter,system-ui,sans-serif;color:#fff;background:rgba(21,23,28,.78);border:1px solid rgba(255,255,255,.22);border-radius:10px;padding:7px 10px;cursor:pointer}
+#camBtn:hover{background:rgba(21,23,28,.92)}
+#camBtn kbd{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.3);font-size:11px}
+#camBtn .ci{width:16px;height:11px;border:2px solid #fff;border-radius:3px;position:relative;margin-right:4px}
+#camBtn .ci:after{content:'';position:absolute;right:-7px;top:1px;border:4px solid transparent;border-left:5px solid #fff}
 .lobby{display:grid;grid-template-columns:minmax(0,1fr);gap:0 20px;align-items:start}
 @media (min-width:760px){.lobby{grid-template-columns:minmax(0,1fr) minmax(0,1.1fr)}.lobby .howto{margin-top:0}}
 .howto{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:12px 0 4px;text-align:left}
@@ -106,6 +111,7 @@ html.touch .stage{border-radius:0;border:0}
 <header><h1>Gym with Friends</h1><span class="ver">v0.3: online, mates vs mates</span></header>
 <div class="stage" id="stage">
 <canvas id="game" aria-label="Gym floor. Most gains at closing wins."></canvas>
+<button type="button" id="camBtn" hidden aria-label="Switch camera"></button>
 <div class="touchui" id="touch" hidden>
 <div id="joyZone" aria-label="Drag to move"></div>
 <div id="joy"><div id="knob"></div></div>
@@ -155,7 +161,17 @@ let ws=null,myId=null,S=null,joined=false;
 const disp={};
 const ME={x:1300,y:650,phase:0,zc:.5,cd:0,on:null,tp:-1,lastSend:0,sx:0,sy:0,camYaw:-Math.PI/2};
 // Phones in 3D get an over-the-shoulder camera; the joystick then steers relative to where the camera looks
-const SHOULDER=()=>TOUCH&&VIEW3D&&window.V3D&&V3D.ready;
+const IN3D=()=>VIEW3D&&window.V3D&&V3D.ready;
+// Camera: 0 = overhead, 1 = behind your shoulder. Phones always use the shoulder camera; on PC it's a toggle (button or V).
+let CAMWANT=0,CAMP=0;try{CAMWANT=localStorage.getItem('gc_cam')==='behind'?1:0}catch(e){}
+const camWant=()=>TOUCH?1:CAMWANT;
+const camEase=t=>t*t*t*(t*(t*6-15)+10);   // smootherstep: no jolt at either end
+const CAMW=()=>IN3D()?camEase(CAMP):0;
+const camYawNow=()=>{const w=CAMW();return -Math.PI/2+SH.angDiff(ME.camYaw,-Math.PI/2)*w};
+function toggleCam(){if(TOUCH||!IN3D())return;CAMWANT=CAMWANT?0:1;try{localStorage.setItem('gc_cam',CAMWANT?'behind':'overhead')}catch(e){}
+if(CAMWANT&&CAMP<.05)ME.camYaw=ME.faceA!==undefined?ME.faceA:-Math.PI/2;syncCamBtn()}
+function syncCamBtn(){const b=$('camBtn');if(!b)return;const show=IN3D()&&!TOUCH&&!!S&&(S.st==='playing'||S.st==='countdown');if(b.hidden===show)b.hidden=!show;
+const t=camWant()?'Camera: behind you':'Camera: overhead';if(b.dataset.t!==t){b.dataset.t=t;b.innerHTML='<span class="ci" aria-hidden="true"></span>'+t+' <kbd>V</kbd>'}}
 let pops=[],parts=[],steam=[],dust=[],banner=null,hintMsg=null,seen={},cardKey='';
 const K=new Set(),JV={x:0,y:0},SPR={key:false,touch:false};
 const me=()=>S&&S.p.find(p=>p.id===myId);
@@ -330,6 +346,7 @@ if(Math.random()<dt*(p.ft-55)/45*9)parts.push({x:pos.x+rnd(-9,9),y:pos.y-12,vx:r
 for(const p of S.p){const pos=p.on!==null?{x:MACH[p.on].x+MACH[p.on].w/2,y:MACH[p.on].y+MACH[p.on].h/2}:(p.id===myId?ME:disp[p.id]);if(!pos)continue;
 if(p.ft>=95)for(let n=Math.floor(dt*40+Math.random());n>0;n--){const k=Math.random()<.5?-1:1;steam.push({x:pos.x+k*12,y:pos.y-6,vx:k*rnd(45,75),vy:rnd(-35,-15),a:1,r:rnd(4,6)})}
 const spr=p.id===myId?ME.spr:p.sp;if(spr&&p.on===null&&Math.random()<dt*26)dust.push({x:pos.x+rnd(-6,6),y:pos.y+8,vx:rnd(-15,15),vy:rnd(-8,4),a:.9})}
+CAMP=Math.max(0,Math.min(1,CAMP+(camWant()?1:-1)*dt/0.85));syncCamBtn();
 const m=me();if(!m)return;
 if(ME.vo)ME.vo.t-=dt;FADE=Math.max(0,FADE-dt);
 ME.cd=Math.max(0,ME.cd-dt);
@@ -337,8 +354,9 @@ ME.spr=false;
 if(m.lk){const k=Math.min(1,dt*15);ME.x+=(m.x-ME.x)*k;ME.y+=(m.y-ME.y)*k}
 else if(S.st==='playing'){let vx=(K.has('right')?1:0)-(K.has('left')?1:0)+JV.x,vy=(K.has('down')?1:0)-(K.has('up')?1:0)+JV.y;const l=Math.hypot(vx,vy);
 if(l>1){vx/=l;vy/=l}
-if(SHOULDER()&&l>0){const f=ME.camYaw,fx=Math.cos(f),fy=Math.sin(f),nx=fx*(-vy)-fy*vx,ny=fy*(-vy)+fx*vx;vx=nx;vy=ny;
-const hd=Math.atan2(vy,vx),dd=SH.angDiff(hd,ME.camYaw);if(l>.3&&Math.abs(dd)<1.75)ME.camYaw+=dd*Math.min(1,dt*1.5*Math.min(1,l))}
+if(CAMW()>0&&l>0){const f=camYawNow(),fx=Math.cos(f),fy=Math.sin(f),nx=fx*(-vy)-fy*vx,ny=fy*(-vy)+fx*vx;vx=nx;vy=ny;
+const hd=Math.atan2(vy,vx),dd=SH.angDiff(hd,ME.camYaw);if(CAMW()>.85&&l>.3&&Math.abs(dd)<1.75)ME.camYaw+=dd*Math.min(1,dt*1.5*Math.min(1,l))}
+if(l>.2)ME.faceA=Math.atan2(vy,vx);
 ME.spr=(SPR.key||SPR.touch)&&l>.2&&!m.lm&&m.ft<100;const sp=C.playerSpeed*(m.lm?.55:1)*(ME.spr?C.sprintMult:1);if(l){ME.x+=vx*sp*dt;ME.y+=vy*sp*dt}SH.collide(ME);
 ME.stairT=Math.max(0,(ME.stairT||0)-dt);{const st=ME.stairT<=0&&SH.stairAt(ME.x,ME.y);if(st){const o=SH.stairDest(st,ME.x);floorJump(ME,o[0],o[1]);ME.stairT=.8}}
 const now=performance.now();if(now-ME.lastSend>50&&(Math.abs(ME.x-ME.sx)>.3||Math.abs(ME.y-ME.sy)>.3)){send({t:'pos',x:Math.round(ME.x*10)/10,y:Math.round(ME.y*10)/10,s:ME.spr?1:0});ME.lastSend=now;ME.sx=ME.x;ME.sy=ME.y}}
@@ -572,7 +590,7 @@ cx.fillStyle='#15171C';cx.font='800 13px Inter, sans-serif';cx.textAlign='center
 cx.fillStyle='rgba(21,23,28,.35)';cx.fillRect(bx+10,by2+44,(bw3-20)*Math.max(0,askMe.t/C.askTime),3)}
 else if(askMine){const ow=byId(askMine.ow)||{n:'them'};label('Waiting on '+ow.n+'… '+Math.max(0,askMine.t).toFixed(1)+'s',VW/2,74,'#FFE29A',12,true)}
 if(banner){cx.globalAlpha=Math.min(1,banner.time);cx.font='400 '+(small?15:21)+'px Bungee, Impact, sans-serif';cx.textAlign='center';let t=banner.t;while(cx.measureText(t).width>VW-40&&t.length>8)t=t.slice(0,-2)+'…';const w=cx.measureText(t).width+30;const by=VH*.38;cx.fillStyle='rgba(15,17,21,.85)';rr(VW/2-w/2,by-20,w,40,10);cx.fill();cx.fillStyle=banner.c;cx.fillText(t,VW/2,by+1);cx.globalAlpha=1}
-if(hintMsg&&!askMe){cx.font='600 13px Inter, sans-serif';const maxW=TOUCH?Math.min(420,VW-16):Math.min(460,VW-mw-44);const lines=wrap(hintMsg.t,maxW-20);const hh=lines.length*17+14;const hy=TOUCH?62+Math.round(82*(small?.86:1))+8:VH-hh-10;const hx=TOUCH?(VW-maxW)/2:8;
+if(hintMsg&&!askMe){cx.font='600 13px Inter, sans-serif';const maxW=TOUCH?Math.min(420,VW-16):Math.min(460,VW-mw-44);const lines=wrap(hintMsg.t,maxW-20);const hh=lines.length*17+14;const hy=TOUCH?62+Math.round(82*(small?.86:1))+8:VH-hh-10-(IN3D()?46:0);const hx=TOUCH?(VW-maxW)/2:8;
 cx.globalAlpha=Math.min(1,hintMsg.time);cx.fillStyle='rgba(47,111,224,.95)';rr(hx,hy,maxW,hh,10);cx.fill();cx.fillStyle='#fff';cx.textAlign='left';lines.forEach((l,i)=>cx.fillText(l,hx+10,hy+15+i*17));cx.globalAlpha=1}}
 
 function nearMachine(maxD,f){let b=-1,bd=maxD;MACH.forEach((mc,i)=>{if(f&&!f(i))return;const u=useSpot(mc);const d=dist(ME.x,ME.y,u.x,u.y);if(d<bd){bd=d;b=i}});return b}
@@ -593,7 +611,7 @@ pops.forEach(p=>{cx.globalAlpha=Math.max(0,Math.min(1,p.a));const s=P(p.x,p.y,1.
 if(S.st==='playing'&&S.tm<20){cx.fillStyle='rgba(5,6,10,'+((20-S.tm)/20*.3)+')';cx.fillRect(0,0,VW,VH)}}
 function draw(){const m=me();
 if(VIEW3D&&window.V3D&&V3D.ready){cx.setTransform(DPR,0,0,DPR,0,0);cx.clearRect(0,0,VW,VH);if(!S)return;
-V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT,dt:DT,GA,vo:voNow,cam:SHOULDER()?{yaw:ME.camYaw}:null});drawLabels3D(m);}else{
+V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT,dt:DT,GA,vo:voNow,cam:{yaw:camYawNow(),w:CAMW()}});drawLabels3D(m);}else{
 const vw=VW/Z,vh=VH/Z,fl=SH.FLOORS[SH.floorOf(ME.x)];cam.x=fl.w<=vw?fl.x+(fl.w-vw)/2:Math.max(fl.x,Math.min(fl.x+fl.w-vw,ME.x-vw/2));const padB=TOUCH?vh*0.32:40;cam.y=fl.h+padB<=vh?fl.y+(fl.h-vh)/2:Math.max(-40,Math.min(fl.y+fl.h-vh+padB,ME.y-vh/2));
 cx.setTransform(DPR,0,0,DPR,0,0);cx.fillStyle='#2B303A';cx.fillRect(0,0,VW,VH);
 if(!S)return;
@@ -634,7 +652,8 @@ addEventListener('keydown',e=>{const tag=e.target&&e.target.tagName;if(tag==='IN
 if(TOUCH&&(KEYMAP[e.code]||ACTMAP[e.code]))setTouch(false);
 if(KEYMAP[e.code]){K.add(KEYMAP[e.code]);if(S&&S.st==='playing')e.preventDefault()}
 else if(ACTMAP[e.code]){if(tag==='BUTTON'&&!$('ov').hidden)return;e.preventDefault();if(!e.repeat)act(ACTMAP[e.code])}
-else if(/^Digit[1-4]$/.test(e.code)&&!e.repeat)emote(+e.code.slice(5)-1)});
+else if(/^Digit[1-4]$/.test(e.code)&&!e.repeat)emote(+e.code.slice(5)-1);
+else if(e.code==='KeyV'&&!e.repeat)toggleCam()});
 addEventListener('keydown',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')SPR.key=true});
 addEventListener('keyup',e=>{if(KEYMAP[e.code])K.delete(KEYMAP[e.code]);if(e.code==='ShiftLeft'||e.code==='ShiftRight')SPR.key=false});
 addEventListener('blur',()=>{K.clear();SPR.key=false;SPR.touch=false});
@@ -653,6 +672,7 @@ zone.addEventListener('pointermove',e=>{if(e.pointerId===id)move(e)});
 home()})();
 (function(){const b=$('bSprint');const on=e=>{e.preventDefault();SPR.touch=true;b.classList.add('on')},off=()=>{SPR.touch=false;b.classList.remove('on')};
 b.addEventListener('pointerdown',on);['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,off));b.addEventListener('contextmenu',e=>e.preventDefault())})();
+$('camBtn').onclick=e=>{toggleCam();e.currentTarget.blur()};
 document.addEventListener('gesturestart',e=>e.preventDefault());
 </script>
 </body>
