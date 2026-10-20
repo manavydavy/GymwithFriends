@@ -31,6 +31,8 @@ canvas{display:block;width:100%;touch-action:none}
 .err{color:var(--bad)!important;font-weight:600}
 button{font:inherit;cursor:pointer}
 .primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:10px;padding:12px 20px;font-weight:800;font-size:16px;min-height:46px;margin-top:8px}
+.ghost.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.viewpick{display:flex;gap:8px;margin:4px 0 6px}.viewpick .ghost{flex:1;margin:0}
 .ghost{background:transparent;color:var(--ink);border:2px solid var(--line);border-radius:10px;padding:10px 14px;font-weight:700;font-size:14px;min-height:44px;margin-top:8px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .invite{display:flex;gap:8px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 8px 8px 12px;margin:6px 0 10px}
@@ -107,6 +109,7 @@ html.touch .stage{border-radius:0;border:0}
 
 <script src="shared.js"></script>
 <script src="models.js"></script>
+<script src="view3d.js"></script>
 <script>
 const SH=window.SHARED,C=SH.CFG,W=SH.W,H=SH.H,GROUPS=SH.GROUPS,GK=SH.GK,MACH=SH.MACH,TREADS=SH.TREADS,DESK=SH.DESK,REST=SH.REST,DOOR=SH.DOOR,EMOTES=SH.EMOTES;
 const dist=SH.dist,useSpot=SH.useSpot,inRest=SH.inRest;
@@ -116,12 +119,13 @@ const rnd=(a,b)=>a+Math.random()*(b-a);
 const cv=$('game'),cx=cv.getContext('2d'),stage=$('stage');GM.ctx(cx);
 
 // ---------- screen + input mode ----------
+let VIEW3D=false;try{const v=new URLSearchParams(location.search).get('view');VIEW3D=v?v==='3d':localStorage.getItem('gc_view')==='3d'}catch(e){}
 let VW=800,VH=500,Z=1,DPR=1,TT=0,TOUCH=false;
 try{TOUCH=matchMedia('(pointer: coarse)').matches}catch(e){}
 function resize(){const w=stage.clientWidth;let h;
 if(TOUCH){h=Math.round(window.visualViewport?visualViewport.height:innerHeight);Z=Math.max(.5,Math.min(1,Math.min(w/1000,h/620)))}
 else{h=w<640?Math.min(w*1.25,innerHeight*.66):Math.min(w*.6,innerHeight*.78);Z=Math.max(.5,Math.min(1,w/1000))}
-cv.style.height=h+'px';VW=w;VH=h;DPR=Math.min(window.devicePixelRatio||1,2);cv.width=Math.round(w*DPR);cv.height=Math.round(h*DPR)}
+cv.style.height=h+'px';VW=w;VH=h;if(window.V3D&&V3D.ready)V3D.resize(w,h);DPR=Math.min(window.devicePixelRatio||1,2);cv.width=Math.round(w*DPR);cv.height=Math.round(h*DPR)}
 function setTouch(on){TOUCH=on;document.documentElement.classList.toggle('touch',on);$('touch').hidden=!on;resize()}
 addEventListener('resize',resize);if(window.visualViewport)visualViewport.addEventListener('resize',resize);
 setTouch(TOUCH);
@@ -201,14 +205,18 @@ const q=new URLSearchParams(location.search).get('room')||'';
 setCard('<h2>Gym Colonisers</h2><p>Race your mates for the most gains before the gym closes. Sabotage is encouraged.</p>'+
 '<label>Your name<input id="nameIn" maxlength="14" autocomplete="nickname" value="'+esc(name)+'"></label>'+
 '<label>Room code<input id="roomIn" class="code" maxlength="6" autocomplete="off" placeholder="Leave blank to make a new room" value="'+esc(q.toUpperCase())+'"></label>'+
+'<div class="viewpick" role="group" aria-label="How the gym looks"><button type="button" class="ghost'+(VIEW3D?'':' sel')+'" id="v2">2D view</button><button type="button" class="ghost'+(VIEW3D?' sel':'')+'" id="v3">3D view (new)</button></div>'+
 (err?'<p class="err">'+esc(err)+'</p>':'')+
 '<button class="primary" type="button" id="joinBtn"></button>','join');
+const pick=v=>{VIEW3D=v;try{localStorage.setItem('gc_view',v?'3d':'2d')}catch(e){}$('v2').classList.toggle('sel',!v);$('v3').classList.toggle('sel',v)};
+$('v2').onclick=()=>pick(false);$('v3').onclick=()=>pick(true);
 const nameIn=$('nameIn'),roomIn=$('roomIn'),btn=$('joinBtn');
 const lab=()=>{btn.textContent=roomIn.value.trim()?'Join room '+roomIn.value.trim().toUpperCase():'Create a room'};lab();
 roomIn.addEventListener('input',lab);
 const go=()=>{const n=nameIn.value.trim();if(!n){nameIn.focus();nameIn.placeholder='Pick a name first';return}
 let code=roomIn.value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
 if(!code){const L='ABCDEFGHJKMNPQRSTUVWXYZ';code='';for(let i=0;i<4;i++)code+=L[Math.floor(Math.random()*L.length)]}
+if(VIEW3D&&!(window.V3D&&V3D.ready)){setCard('<h2>Loading the 3D gym…</h2><p>First time can take a few seconds.</p>','loading3d');V3D.init(stage,cv).then(()=>{resize();connect(n,code)}).catch(()=>{VIEW3D=false;connect(n,code)});return}
 connect(n,code)};
 btn.onclick=go;[nameIn,roomIn].forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter')go()}));
 (name?roomIn:nameIn).focus()}
@@ -427,14 +435,14 @@ S.p.forEach(p=>{if(p.id===myId)return;const d=disp[p.id];if(!d)return;const [a,b
 {const [a,b]=P(ME.x,ME.y);cx.fillStyle='#fff';cx.beginPath();cx.arc(a,b,3.5,0,7);cx.fill()}
 cx.font='700 10px Inter, sans-serif';cx.textAlign='center';cx.fillStyle='#BFE8FF';cx.fillText('Upstairs',ux+uw/2,uy+uh+13)}
 // rep bar
-const sx=(ME.x-cam.x)*Z,sy=(ME.y-cam.y)*Z;
-if(m.on!==null){const mc=MACH[m.on],gi=GK.indexOf(mc.g),bw2=190,bx=Math.max(8,Math.min(VW-bw2-8,sx-bw2/2)),by=Math.max(62,sy-mc.h*Z/2-50);
+const in3D=VIEW3D&&window.V3D&&V3D.ready;const [sx,sy]=in3D?(V3D.project(ME.x,ME.y,0)||[VW/2,VH/2]):[(ME.x-cam.x)*Z,(ME.y-cam.y)*Z];
+if(m.on!==null){const mc=MACH[m.on],gi=GK.indexOf(mc.g),bw2=190,bx=Math.max(8,Math.min(VW-bw2-8,sx-bw2/2)),by=Math.max(62,in3D?sy-175:sy-mc.h*Z/2-50);
 cx.fillStyle='rgba(15,17,21,.92)';rr(bx-6,by-18,bw2+12,44,8);cx.fill();
 cx.font='700 11px Inter, sans-serif';cx.textAlign='left';cx.fillStyle=GROUPS[mc.g].c;cx.fillText(GROUPS[mc.g].n+' '+m.gr[gi]+'%'+(S.pg.includes(mc.g)?'':' (off program, half gains)'),bx,by-8);
 cx.fillStyle='#4C5361';cx.fillRect(bx,by,bw2,16);const zw=zoneW(m);cx.fillStyle='#2E9E4A';cx.fillRect(bx+(ME.zc-zw/2)*bw2,by,zw*bw2,16);cx.fillStyle='#FFC93C';cx.fillRect(bx+(ME.zc-C.perfectWidth/2)*bw2,by,C.perfectWidth*bw2,16);
 const pos=.5+.5*Math.sin(ME.phase);cx.fillStyle='#fff';cx.fillRect(bx+pos*bw2-2,by-3,4,22)}
 else if(!m.lk){const i=nearMachine(52);if(i>=0){const mc=MACH[i],st=S.m[i],gi=GK.indexOf(mc.g);const u=st[0]!==null?byId(st[0]):null,o=st[1]!==null&&st[1]!==myId?byId(st[1]):null;
-const t=u?'Shove '+u.n+'?':o?'Ask '+o.n+' if they\'re using it':m.pl[gi]?'Pulled: can\'t train '+GROUPS[mc.g].n.toLowerCase():'Use '+mc.name+' ('+GROUPS[mc.g].n+')';label(t,sx,sy+46*Z+8,'#FFC93C',12,true)}}
+const t=u?'Shove '+u.n+'?':o?'Ask '+o.n+' if they\'re using it':m.pl[gi]?'Pulled: can\'t train '+GROUPS[mc.g].n.toLowerCase():'Use '+mc.name+' ('+GROUPS[mc.g].n+')';label(t,sx,in3D?sy+28:sy+46*Z+8,'#FFC93C',12,true)}}
 // asks
 const askMe=S.ak.find(q=>q.ow===myId),askMine=S.ak.find(q=>q.by===myId);
 if(askMe){const by=byId(askMe.by)||{n:'Someone'};const bw3=Math.min(380,VW-20),bx=(VW-bw3)/2,by2=62;cx.fillStyle='rgba(255,138,43,.96)';rr(bx,by2,bw3,50,10);cx.fill();
@@ -447,11 +455,21 @@ cx.globalAlpha=Math.min(1,hintMsg.time);cx.fillStyle='rgba(47,111,224,.95)';rr(h
 
 function nearMachine(maxD,f){let b=-1,bd=maxD;MACH.forEach((mc,i)=>{if(f&&!f(i))return;const u=useSpot(mc);const d=dist(ME.x,ME.y,u.x,u.y);if(d<bd){bd=d;b=i}});return b}
 
+function drawLabels3D(m){const P=V3D.project,showUp=V3D.upVisible(),myF=SH.floorOf(ME.x);
+const lab=(t,x,y,h,c,sz)=>{if(SH.floorOf(x)===1&&!showUp)return;const s=P(x,y,h);if(s)label(t,s[0],s[1],c,sz,true)};
+MACH.forEach(mc=>{const u=useSpot(mc);if(SH.floorOf(mc.x)!==myF||dist(u.x,u.y,ME.x,ME.y)>430)return;lab(mc.name,mc.x+mc.w/2,mc.y+mc.h/2,2.45,'#fff',11)});
+lab('Big Gaz',DESK.x+DESK.w/2+40,DESK.y+DESK.h+32,2.75,'#ff8a80',11);if(S.sf)lab('Staff',S.sf[0],S.sf[1],2.35,'#9BE89F',11);
+S.p.forEach(p=>{const mine=p.id===myId;const pos=mine?ME:disp[p.id];if(!pos)return;let x=pos.x,y=pos.y,h=2.2;if(p.on!==null){const mc=MACH[p.on];x=mc.x+mc.w/2;y=mc.y+mc.h/2;h=2.05}
+lab(mine?'You':p.n,x,y,h,mine?'#fff':p.c,11);const tag=p.em?'"'+p.em+'"':p.lo?'Staff lecture':p.st?'Ouch':(p.lm&&p.on===null)?'Limping':'';if(tag)lab(tag,x,y,h+0.5,p.em?'#FFE29A':'#ffb070',12)});
+pops.forEach(p=>{cx.globalAlpha=Math.max(0,Math.min(1,p.a));const s=P(p.x,p.y,1.8+(1.6-p.a)*0.9);if(s)label(p.t,s[0],s[1],p.c,13,true);cx.globalAlpha=1});
+if(S.st==='playing'&&S.tm<30){cx.fillStyle='rgba(5,6,10,'+((30-S.tm)/30*.3)+')';cx.fillRect(0,0,VW,VH)}}
 function draw(){const m=me();
+if(VIEW3D&&window.V3D&&V3D.ready){cx.setTransform(DPR,0,0,DPR,0,0);cx.clearRect(0,0,VW,VH);if(!S)return;
+V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT});drawLabels3D(m);}else{
 const vw=VW/Z,vh=VH/Z,fl=SH.FLOORS[SH.floorOf(ME.x)];cam.x=fl.w<=vw?fl.x+(fl.w-vw)/2:Math.max(fl.x,Math.min(fl.x+fl.w-vw,ME.x-vw/2));const padB=TOUCH?vh*0.32:40;cam.y=fl.h+padB<=vh?fl.y+(fl.h-vh)/2:Math.max(-40,Math.min(fl.y+fl.h-vh+padB,ME.y-vh/2));
 cx.setTransform(DPR,0,0,DPR,0,0);cx.fillStyle='#2B303A';cx.fillRect(0,0,VW,VH);
 if(!S)return;
-cx.setTransform(DPR*Z,0,0,DPR*Z,-cam.x*DPR*Z,-cam.y*DPR*Z);drawWorld(m);
+cx.setTransform(DPR*Z,0,0,DPR*Z,-cam.x*DPR*Z,-cam.y*DPR*Z);drawWorld(m);}
 cx.setTransform(DPR,0,0,DPR,0,0);if(m&&(S.st==='playing'||S.st==='countdown'))drawHUD(m);
 if(S.st==='countdown'){const n=Math.ceil(S.tm);cx.fillStyle='rgba(15,17,21,.55)';cx.fillRect(0,0,VW,VH);
 cx.textAlign='center';cx.textBaseline='middle';cx.fillStyle='#fff';cx.font='800 '+(VW<600?16:20)+'px Inter, sans-serif';cx.fillText('Today: '+S.pg.map(k=>GROUPS[k].n).join(' + '),VW/2,VH/2-90);

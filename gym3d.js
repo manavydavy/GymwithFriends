@@ -752,12 +752,13 @@
     }
     wall(0, -5, 1800, -5, H2); wall(-5, 0, -5, 1100, H2); wall(1805, 0, 1805, 1100, H2);
     wall(0, 1105, 1040, 1105, 0.55, { low: true }); wall(1120, 1105, 1800, 1105, 0.55, { low: true });
-    // door
-    const dg = group(R, [X(1080), 0, Z(1105)]);
-    box(0.12, 2.4, 0.24, M.frame(), dg, [-0.85, 1.2, 0]); box(0.12, 2.4, 0.24, M.frame(), dg, [0.85, 1.2, 0]); box(1.82, 0.12, 0.24, M.frame(), dg, [0, 2.4, 0]);
+    // door: a doormat and a low exit sign (a tall frame would block the camera)
+    const dg = group(R, [X(1080), 0, Z(1085)]);
+    const mat = box(1.5, 0.02, 0.7, std('#5A3A22', 0.95), dg, [0, 0.012, 0]); mat.castShadow = false;
+    sign(dg, [{ t: 'WELCOME', size: 120, c: '#FFC93C' }], 1.3, 0.35, [0, 0.026, 0], [-Math.PI / 2, 0, 0], { bg: '#5A3A22' });
     const glass = new T.MeshStandardMaterial({ color: '#A8D8EA', roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.4 });
-    const gd = box(0.8, 2.3, 0.04, glass, dg, [-0.42, 1.17, 0]); gd.castShadow = false; const gd2 = box(0.8, 2.3, 0.04, glass, dg, [0.55, 1.17, 0.3], [0, 0.8, 0]); gd2.castShadow = false;
-    sign(dg, [{ t: 'EXIT', size: 170, c: '#FFFFFF' }], 0.6, 0.22, [0, 2.72, -0.13], [0, Math.PI, 0], { bg: '#1E9E4A' }, true);
+    tube([0.9, 0, 0.35], [0.9, 0.75, 0.35], 0.025, M.steel(), dg);
+    sign(dg, [{ t: 'EXIT', size: 170, c: '#FFFFFF' }], 0.5, 0.2, [0.9, 0.85, 0.36], [0, 0, 0], { bg: '#1E9E4A' }, true);
     // interior walls, half walls, railings, lockers
     sh.WALLS.forEach(w => {
       if (w.t === 'wall') { wall(w.x + w.w / 2, w.y, w.x + w.w / 2, w.y + w.h, H1, { th: w.w * SCALE }); }
@@ -827,7 +828,33 @@
     box(0.08, 0.82, 1.4, M.black(), R, [rwx - 0.04, 2.3, Z(60) + 1.0]);
     sign(R, [{ t: 'GYM TV', size: 60, c: '#FFFFFF' }, { t: 'leg day highlights', size: 40, c: '#9BE89F', weight: '700' }], 1.3, 0.72, [rwx - 0.09, 2.3, Z(60) + 1.0], [0, -Math.PI / 2, 0], { bg: '#22324A' }, true);
     PROPS(R, up, sh);
+    up.userData.noMerge = true;
+    mergeStatic(R); mergeStatic(up);
     return { R, up };
+  }
+  // Bake all non-moving, untextured meshes into one mesh per material (far fewer draw calls on phones)
+  function mergeStatic(root) {
+    root.updateMatrixWorld(true);
+    const inv = new T.Matrix4().copy(root.matrixWorld).invert(), buckets = new Map(), kill = [];
+    root.traverse(o => {
+      if (!o.isMesh || o.material.transparent || o.material.map) return;
+      for (let p = o.parent; p && p !== root; p = p.parent) if (p.userData.noMerge) return;
+      const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      g.applyMatrix4(new T.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+      const k = o.material.uuid + '|' + o.castShadow;
+      if (!buckets.has(k)) buckets.set(k, { mat: o.material, cast: o.castShadow, geos: [] });
+      buckets.get(k).geos.push(g); kill.push(o);
+    });
+    kill.forEach(o => o.parent.remove(o));
+    buckets.forEach(b => {
+      let n = 0; b.geos.forEach(g => n += g.attributes.position.count);
+      const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2); let off = 0;
+      b.geos.forEach(g => { pos.set(g.attributes.position.array, off * 3); nor.set(g.attributes.normal.array, off * 3); if (g.attributes.uv) uv.set(g.attributes.uv.array, off * 2); off += g.attributes.position.count; });
+      const m = new T.BufferGeometry();
+      m.setAttribute('position', new T.BufferAttribute(pos, 3)); m.setAttribute('normal', new T.BufferAttribute(nor, 3)); m.setAttribute('uv', new T.BufferAttribute(uv, 2));
+      m.computeBoundingSphere();
+      const mesh = new T.Mesh(m, b.mat); mesh.castShadow = b.cast; mesh.receiveShadow = true; root.add(mesh);
+    });
   }
   function PROPS(R, up, sh) {
     sh.REST.forEach(r => {

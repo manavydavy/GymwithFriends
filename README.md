@@ -57,6 +57,9 @@ The gym has separate areas: the main hall (arms and shoulders), cable alley (bac
 past the locker room to the leg room, and stairs up to the chest floor. Each area has its own rest spot.
 There's no staff upstairs.
 
+On the join screen you can pick **2D view** or **3D view (new)**. Both play in the same rooms,
+so mates can mix. The 3D view needs a bit more phone power; switch to 2D if it lags.
+
 Phone: drag on the left side to move, buttons on the right.
 PC: WASD or arrows, Space rep, E use or step off, Q throw towel, C wipe down, F shove, R "Yep, using it", 1–4 quick chat.
 

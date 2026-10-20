@@ -23,7 +23,8 @@ const FILES = {
   '/models.js': ['models.js', 'application/javascript; charset=utf-8'],
   '/3d': ['3d.html', 'text/html; charset=utf-8'],
   '/3d.html': ['3d.html', 'text/html; charset=utf-8'],
-  '/gym3d.js': ['gym3d.js', 'application/javascript; charset=utf-8']
+  '/gym3d.js': ['gym3d.js', 'application/javascript; charset=utf-8'],
+  '/view3d.js': ['view3d.js', 'application/javascript; charset=utf-8']
 };
 const server = http.createServer((req, res) => {
   const u = req.url.split('?')[0];
