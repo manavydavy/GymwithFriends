@@ -317,6 +317,23 @@ shapes.forEach(([k,f])=>{const i=GK.indexOf(k),tgt=tg.includes(k);cx.globalAlpha
 tg.forEach((k,j)=>{const i=GK.indexOf(k),p=m.gr[i];const yy=152+j*17;cx.fillStyle=GROUPS[k].c;cx.beginPath();cx.arc(12,yy,4,0,7);cx.fill();cx.font='700 11px Inter, sans-serif';cx.textAlign='left';cx.textBaseline='middle';cx.fillStyle='#eee';cx.fillText(GROUPS[k].n,20,yy);cx.textAlign='right';cx.fillStyle=m.pl[i]?'#ff8a80':p>=100?'#9BE89F':'#ddd';cx.fillText(m.pl[i]?'Pulled':p>=100?'Done':Math.round(p)+'%',100,yy)});
 cx.restore();return h*s}
 
+// Progress rings: one per muscle on today's program.
+function drawRings(m,x,y,s){const tg=S.pg,cw=54,pad=8,w=tg.length*cw+pad*2-4,h=82;
+const warnAt=100+(C.overdoAt-100)*.4,cur=m.on!==null?MACH[m.on].g:null;
+cx.save();cx.translate(x,y);cx.scale(s,s);
+cx.fillStyle='rgba(15,17,21,.86)';rr(0,0,w,h,10);cx.fill();
+tg.forEach((k,j)=>{const i=GK.indexOf(k),p=m.gr[i],pl=m.pl[i];const rx=pad+cw/2+j*cw-2,ry=30,R=18,A0=-Math.PI/2;
+const ring=(col,frac,lw)=>{cx.strokeStyle=col;cx.lineWidth=lw||6;cx.lineCap='round';cx.beginPath();cx.arc(rx,ry,R,A0,A0+Math.PI*2*Math.max(0,Math.min(1,frac)));cx.stroke()};
+let mid,midCol='#fff';
+if(pl){const a=.55+.45*Math.sin(TT*6);ring('rgba(255,90,90,'+a+')',1);mid='✕';midCol='#ff8a80'}
+else if(p>=warnAt){cx.lineCap='butt';ring('#F0A03C',1);ring('#ff5a5a',(p-100)/(C.overdoAt-100));mid='!';midCol='#FFC1A0'}
+else if(p>=100){ring('#3FBF5A',1);mid='✓';midCol='#9BE89F'}
+else{cx.lineCap='butt';ring('#3a3f4a',1);if(p>0)ring(GROUPS[k].c,p/100);mid=String(p)}
+if(cur===k){cx.strokeStyle='rgba(255,255,255,'+(.5+.4*Math.sin(TT*5))+')';cx.lineWidth=1.5;cx.beginPath();cx.arc(rx,ry,R+6,0,7);cx.stroke()}
+cx.textAlign='center';cx.textBaseline='middle';cx.fillStyle=midCol;cx.font='800 '+(mid.length>2?12:14)+'px Inter, sans-serif';cx.fillText(mid,rx,ry+1);
+cx.font=(cur===k?'800':'600')+' 11px Inter, sans-serif';cx.fillStyle=pl?'#ff8a80':'#eee';cx.fillText(pl?'Pulled':GROUPS[k].n,rx,ry+34)});
+cx.restore()}
+
 function drawBoard(x,y,w){const rows=S.p.slice().sort((a,b)=>b.g-a.g);const h=10+rows.length*18;
 cx.fillStyle='rgba(15,17,21,.82)';rr(x,y,w,h,10);cx.fill();
 rows.forEach((p,i)=>{const yy=y+14+i*18;cx.fillStyle=p.c;cx.beginPath();cx.arc(x+12,yy,5,0,7);cx.fill();
@@ -335,7 +352,7 @@ cx.textAlign='center';cx.font='400 '+(small?20:24)+'px Bungee, Impact, sans-seri
 cx.font='700 11px Inter, sans-serif';cx.textAlign='left';cx.fillStyle='#bbb';cx.fillText('Heat',10,41);const hb=small?50:80;cx.fillStyle='#3a3f4a';rr(40,36,hb,9,4);cx.fill();cx.fillStyle=m.hz>70?'#ff6b6b':'#ffb070';rr(40,36,Math.max(1,hb*m.hz/100),9,4);cx.fill();
 cx.textAlign='center';cx.fillStyle=m.sk?'#ff8a80':'#bbb';cx.fillText('Strikes '+m.sk,VW/2,42);
 cx.textAlign='right';cx.fillStyle='#8FB6FF';const cl=m.cl!==null?S.m[m.cl]:null;cx.fillText(m.tc>0?'Towel drying '+m.tc+'s':cl&&cl[1]===myId?'Towel on '+(small?'':MACH[m.cl].name+' ')+Math.ceil(cl[2])+'s':'Towel ready',RX,42);
-drawBodyMap(m,8,62,small||VH<520?.74:1);
+drawRings(m,8,62,small?.86:1);
 const bw=small?120:150;const bh=drawBoard(VW-bw-8,62,bw);
 // minimap
 const showMini=!TOUCH||VH>=600;const mw=small||TOUCH?110:160,mh=mw*H/W,mx=VW-mw-8,my=TOUCH?62+bh+8:VH-mh-8,sc=mw/W;
@@ -361,7 +378,7 @@ cx.fillStyle='#15171C';cx.font='800 13px Inter, sans-serif';cx.textAlign='center
 cx.fillStyle='rgba(21,23,28,.35)';cx.fillRect(bx+10,by2+44,(bw3-20)*Math.max(0,askMe.t/C.askTime),3)}
 else if(askMine){const ow=byId(askMine.ow)||{n:'them'};label('Waiting on '+ow.n+'… '+Math.max(0,askMine.t).toFixed(1)+'s',VW/2,74,'#FFE29A',12,true)}
 if(banner){cx.globalAlpha=Math.min(1,banner.time);cx.font='400 '+(small?15:21)+'px Bungee, Impact, sans-serif';cx.textAlign='center';let t=banner.t;while(cx.measureText(t).width>VW-40&&t.length>8)t=t.slice(0,-2)+'…';const w=cx.measureText(t).width+30;const by=VH*.38;cx.fillStyle='rgba(15,17,21,.85)';rr(VW/2-w/2,by-20,w,40,10);cx.fill();cx.fillStyle=banner.c;cx.fillText(t,VW/2,by+1);cx.globalAlpha=1}
-if(hintMsg&&!askMe){cx.font='600 13px Inter, sans-serif';const maxW=TOUCH?Math.min(420,VW-16):Math.min(460,VW-mw-44);const lines=wrap(hintMsg.t,maxW-20);const hh=lines.length*17+14;const hy=TOUCH?62:VH-hh-10;const hx=TOUCH?(VW-maxW)/2:8;
+if(hintMsg&&!askMe){cx.font='600 13px Inter, sans-serif';const maxW=TOUCH?Math.min(420,VW-16):Math.min(460,VW-mw-44);const lines=wrap(hintMsg.t,maxW-20);const hh=lines.length*17+14;const hy=TOUCH?62+Math.round(82*(small?.86:1))+8:VH-hh-10;const hx=TOUCH?(VW-maxW)/2:8;
 cx.globalAlpha=Math.min(1,hintMsg.time);cx.fillStyle='rgba(47,111,224,.95)';rr(hx,hy,maxW,hh,10);cx.fill();cx.fillStyle='#fff';cx.textAlign='left';lines.forEach((l,i)=>cx.fillText(l,hx+10,hy+15+i*17));cx.globalAlpha=1}}
 
 function nearMachine(maxD,f){let b=-1,bd=maxD;MACH.forEach((mc,i)=>{if(f&&!f(i))return;const u=useSpot(mc);const d=dist(ME.x,ME.y,u.x,u.y);if(d<bd){bd=d;b=i}});return b}
