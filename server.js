@@ -267,7 +267,7 @@ function rep(r, p, q) {
   const g = p.grp[m.g], before = g.p;
   if (p.done && p.on === r.gold) {
     // golden machine: full gains, no muscle progress (so no pulled muscles), counts toward the bonus
-    const gain = Math.round(10 * (1 + Math.min(p.combo, 10) * 0.1) * (perfect ? 1.5 : 1));
+    const gain = Math.round(10 * (1 + Math.min(p.combo, 10) * 0.1) * (perfect ? 1.5 : 1) + (perfect ? C.perfectBonus : 0));
     p.gains += gain; p.goldN++;
     ev(r, { k: 'pop', to: p.id, x: Math.round(p.x), y: Math.round(p.y - 46), s: 'Gold ' + p.goldN + '/' + C.goldReps + '  +' + gain, c: '#FFC93C' });
     if (p.goldN >= C.goldReps) {
@@ -278,7 +278,7 @@ function rep(r, p, q) {
   } else {
   g.p += C.groupPerRep * (perfect ? 1.5 : 1);
   const onProg = r.prog.includes(m.g);
-  const gain = Math.max(1, Math.round(10 * (1 + Math.min(p.combo, 10) * 0.1) * (perfect ? 1.5 : 1) * (before >= 100 ? 0.3 : 1) * (onProg ? 1 : C.offProgramGains)));
+  const gain = Math.max(1, Math.round(10 * (1 + Math.min(p.combo, 10) * 0.1) * (perfect ? 1.5 : 1) * (before >= 100 ? 0.3 : 1) * (onProg ? 1 : C.offProgramGains) + (perfect ? C.perfectBonus : 0)));
   p.gains += gain;
   ev(r, { k: 'pop', to: p.id, x: Math.round(p.x), y: Math.round(p.y - 46), s: (perfect ? 'Perfect +' : '+') + gain, c: perfect ? '#FFC93C' : '#9BE89F' });
   }

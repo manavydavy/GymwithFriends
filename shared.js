@@ -31,6 +31,7 @@
     staffSpeed: 80,
     staffScan: 2.6,        // seconds staff spend looking around at each lookout point
     playerSpeed: 185,
+    perfectBonus: 7.5,     // extra gains on top of the 1.5x for every perfect rep
     goldReps: 5,           // after finishing the program: this many reps on the golden machine...
     goldBonus: 150,        // ...banks this bonus, then the golden machine moves
     sprintMult: 1.6,       // hold Shift: this much faster...
