@@ -22,6 +22,11 @@
     return 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')';
   }
   function heat(f) { const t = Math.min(f, 100) / 100; return 'rgba(255,' + Math.round(205 - 155 * t) + ',' + Math.round(70 - 40 * t) + ',.92)'; }
+  function mix(a, b, t) {
+    const A = parseInt(a.slice(1), 16), B = parseInt(b.slice(1), 16);
+    const ch = (n, s) => (n >> s) & 255, m = s => Math.round(ch(A, s) + (ch(B, s) - ch(A, s)) * t);
+    return '#' + ((1 << 24) + (m(16) << 16) + (m(8) << 8) + m(0)).toString(16).slice(1);
+  }
   function rr(x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
   function circ(x, y, r, f) { c.fillStyle = col(f); c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); }
   function seg(a, b, w, f, outline) {
@@ -120,18 +125,21 @@
     c.restore();
   }
   function head(x, y, o) {
+    const t = Math.max(0, Math.min(1, ((o.fat || 0) - 40) / 55)), face = t > 0 ? mix(o.skin, '#E8402F', t * 0.9) : o.skin;
+    c.save(); c.translate(x, y); c.scale(1 + t * 0.09, 1 + t * 0.09); c.translate(-x, -y);
     circ(x + 1.5, y + 2.2, 9.6, 'rgba(0,0,0,.2)');
-    circ(x - 8.7, y + 0.8, 2.6, o.skin); circ(x + 8.7, y + 0.8, 2.6, o.skin);
-    circ(x, y, 9, o.skin);
+    circ(x - 8.7, y + 0.8, 2.6, face); circ(x + 8.7, y + 0.8, 2.6, face);
+    circ(x, y, 9, face);
     c.fillStyle = col(o.hair); c.beginPath(); c.arc(x, y + 1.6, 8.2, 0, Math.PI * 2); c.fill();
-    c.fillStyle = col(o.skin); c.beginPath(); c.ellipse(x, y - 5.4, 6, 3.4, 0, 0, 7); c.fill();
-    if (SH) return;
-    c.fillStyle = shade(o.skin, -0.15); c.beginPath(); c.ellipse(x, y - 8.7, 1.8, 1.3, 0, 0, 7); c.fill();
+    c.fillStyle = col(face); c.beginPath(); c.ellipse(x, y - 5.4, 6, 3.4, 0, 0, 7); c.fill();
+    if (SH) { c.restore(); return; }
+    c.fillStyle = shade(face, -0.15); c.beginPath(); c.ellipse(x, y - 8.7, 1.8, 1.3, 0, 0, 7); c.fill();
     c.strokeStyle = o.band || o.col; c.lineWidth = 2.4; c.beginPath(); c.arc(x, y, 8.6, 0, Math.PI * 2); c.stroke();
     c.strokeStyle = o.band || o.col; c.lineWidth = 1.8; c.lineCap = 'round';
     c.beginPath(); c.moveTo(x - 1, y + 8.6); c.lineTo(x - 3.5, y + 13); c.moveTo(x + 1, y + 8.6); c.lineTo(x + 3, y + 12.5); c.stroke();
     if (o.shades) { c.fillStyle = '#0E0F12'; rr(x - 6.5, y - 8.4, 13, 3.4, 1.6); c.fill(); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(x - 5, y - 7.8, 3, 1); }
     if (o.hurt) { c.strokeStyle = '#111'; c.lineWidth = 1.3; c.beginPath(); c.moveTo(x - 3.5, y - 6.5); c.lineTo(x - 1.5, y - 4.5); c.moveTo(x - 1.5, y - 6.5); c.lineTo(x - 3.5, y - 4.5); c.moveTo(x + 1.5, y - 6.5); c.lineTo(x + 3.5, y - 4.5); c.moveTo(x + 3.5, y - 6.5); c.lineTo(x + 1.5, y - 4.5); c.stroke(); }
+    c.restore();
   }
   function arm(s, h, bend, side, o) {
     const mx = (s[0] + h[0]) / 2, my = (s[1] + h[1]) / 2, dx = h[0] - s[0], dy = h[1] - s[1], L = Math.hypot(dx, dy) || 1;
