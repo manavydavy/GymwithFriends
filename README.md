@@ -84,3 +84,4 @@ For a quick test round, start it with a shorter clock: `ROUND_LENGTH=40 npm star
 - `room.glb` + `floor_ao.jpg`: the gym building rebuilt in Blender (rounded edges, baked shading on lockers, stairs, desk and props) and soft contact shadows baked onto the ground floor.
 - `machines.json` / `char.json`: map Blender parts onto the built-in machines and characters, so their animations keep working. A machine or the characters switch over once their `.glb` is added and marked `"glb": true`.
 - `blender/`: the scripts that read the shapes from `gym3d.js` (`capture.js`, `capture_char.js`, `capture_room.js`) and rebuild them in Blender (`gc_build.py`, `gc_char.py`, `gc_room.py`).
+- The 3D view uses a realistic colour pipeline (filmic tone mapping, reflections from a soft studio environment), rubber tile flooring with a normal map, and drops its render resolution automatically if frames get slow. Add `?look=old` to the URL for the previous flat look.

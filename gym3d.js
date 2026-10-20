@@ -679,7 +679,14 @@
         if (!o.isMesh) return;
         // baked ambient occlusion lives in the vertex colours; soften it and drop the alpha channel
         const c = o.geometry.getAttribute('color');
-        if (c) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        if (c && mats.some(m => /^GCR_/.test(m.name || ''))) {
+          // baked full colour (building): stored linear; only the old look needs it back in sRGB
+          const k = !c.normalized ? 1 : c.array instanceof Uint16Array ? 65535 : c.array instanceof Uint8Array ? 255 : 1;
+          const buf = new Float32Array(c.count * 3), lin = !!(out.G3 && out.G3.LINEAR);
+          for (let i = 0; i < c.count; i++) for (let j = 0; j < 3; j++) { const v = Math.min(1, (j === 0 ? c.getX(i) : j === 1 ? c.getY(i) : c.getZ(i)) / k); buf[i * 3 + j] = lin ? v : Math.pow(v, 1 / 2.2); }
+          o.geometry.setAttribute('color', new T.BufferAttribute(buf, 3));
+        } else if (c) {
           const out = new Float32Array(c.count * 3);
           // r128 doesn't un-normalise integer colours for us
           const k = !c.normalized ? 1 : c.array instanceof Uint16Array ? 65535 : c.array instanceof Uint8Array ? 255 : 1;
@@ -698,7 +705,8 @@
     const s = ASSETS[key].clone(true);
     s.traverse(o => {
       if (!o.isMesh) return;
-      const swap = mt => { const n = mt.name || '', g = n.match(/^GCM_(\w+?)_([\d.]+)_([\d.]+)$/);
+      const swap = mt => { const n = mt.name || '', g = n.match(/^GCM_(\w+?)_([\d.]+)_([\d.]+)$/), r = n.match(/^GCR_([\d.]+)_([\d.]+)$/);
+        if (r) return std('#ffffff', +r[1], +r[2], { flatShading: false, vertexColors: true });
         const d = g ? [g[1] === 'gc' ? 'plate' : '#' + g[1], +g[2], +g[3]] : GLB_MATS[n.replace(/^GC_/, '')] || ['#888888', 0.7, 0];
         return std(d[0] === 'plate' ? gc : d[0], d[1], d[2], { flatShading: false, vertexColors: !!o.geometry.getAttribute('color') }); };
       o.material = Array.isArray(o.material) ? o.material.map(swap) : swap(o.material);

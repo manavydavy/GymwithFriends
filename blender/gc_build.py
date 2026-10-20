@@ -55,6 +55,9 @@ def sharp_edges(bm, ang):
     return out
 
 
+QUALITY = 1.0   # lower (e.g. 0.6) for the building: fewer segments and single-step bevels
+
+
 def prim(bm, s):
     """Add one shape to bm (in the owner's three.js frame, before the C conversion)."""
     t, p = s['type'], s['p']
@@ -67,31 +70,34 @@ def prim(bm, s):
         bmesh.ops.create_cube(tmp, size=1)
         bmesh.ops.scale(tmp, vec=dims, verts=tmp.verts)
         mn = min(dims)
-        if mn > 0.006:
+        if s.get('puffy'):
+            bevel_edges(tmp, list(tmp.edges), min(mn * 0.42, 0.035), 4 if QUALITY >= 1 else 2)
+        elif mn > 0.006:
             off = max(0.0015, min(mn * 0.16, 0.012))
-            bevel_edges(tmp, list(tmp.edges), off, 2 if off > 0.004 else 1)
+            bevel_edges(tmp, list(tmp.edges), off, 2 if (off > 0.004 and QUALITY >= 1) else 1)
     elif t == 'CylinderGeometry':
         rt, rb, h = p['radiusTop'] * sc.x, p['radiusBottom'] * sc.x, p['height'] * sc.y
         r = max(rt, rb)
         segs = p.get('radialSegments', 12)
         if segs > 6:
             segs = 32 if r > 0.1 else 24 if r > 0.04 else 16 if r > 0.015 else 10
+            segs = max(8, int(segs * QUALITY))
         bmesh.ops.create_cone(tmp, cap_ends=True, cap_tris=False, segments=segs, radius1=rb, radius2=rt, depth=h)
         bmesh.ops.transform(tmp, matrix=PRE_CYL, verts=tmp.verts)
         if abs(sc.z - sc.x) > 1e-3 and sc.x > 0:
             bmesh.ops.scale(tmp, vec=Vector((1, 1, sc.z / sc.x)), verts=tmp.verts)
         if r > 0.012 and h > 0.006:
             off = min(0.006, r * 0.18, h * 0.2)
-            bevel_edges(tmp, sharp_edges(tmp, 1.0), off, 2 if off > 0.003 else 1)
+            bevel_edges(tmp, sharp_edges(tmp, 1.0), off, 2 if (off > 0.003 and QUALITY >= 1) else 1)
     elif t == 'SphereGeometry':
         r = p['radius']
-        bmesh.ops.create_uvsphere(tmp, u_segments=max(16, p.get('widthSegments', 12) * 2), v_segments=max(10, p.get('heightSegments', 8) * 2), radius=r)
+        bmesh.ops.create_uvsphere(tmp, u_segments=max(12, int(max(16, p.get('widthSegments', 12) * 2) * QUALITY)), v_segments=max(8, int(max(10, p.get('heightSegments', 8) * 2) * QUALITY)), radius=r)
         bmesh.ops.transform(tmp, matrix=Matrix.Rotation(-math.pi / 2, 4, 'X'), verts=tmp.verts)
         bmesh.ops.scale(tmp, vec=sc, verts=tmp.verts)
     elif t == 'TorusGeometry':
         R0, r0 = p['radius'], p['tube']
         arc = p.get('arc', math.pi * 2)
-        n1, n2 = max(24, p.get('tubularSegments', 12) * 2), max(10, p.get('radialSegments', 6) * 2)
+        n1, n2 = max(16, int(max(24, p.get('tubularSegments', 12) * 2) * QUALITY)), max(8, int(max(10, p.get('radialSegments', 6) * 2) * QUALITY))
         full = arc >= math.pi * 2 - 1e-4
         rings = []
         for i in range(n1 + (0 if full else 1)):
@@ -118,6 +124,52 @@ def prim(bm, s):
     bm.from_mesh(me)
     bpy.data.meshes.remove(me)
     return True
+
+
+def _flat(M):
+    return [M[0][0], M[1][0], M[2][0], 0, M[0][1], M[1][1], M[2][1], 0, M[0][2], M[1][2], M[2][2], 0, M[0][3], M[1][3], M[2][3], 1]
+
+
+def enrich(shapes):
+    """Material-aware upgrades on top of the captured machine shapes: puffy pads, post holes, end caps, knurled bars."""
+    out = []
+    for s in shapes:
+        c, t = s['mat']['c'], s['type']
+        if t == 'BoxGeometry' and c == '#3a4257' and s['p']['height'] < 0.02:
+            continue
+        if t == 'BoxGeometry' and c == '#2e3445':
+            s['puffy'] = True
+        out.append(s)
+        M = m4(s['m']); loc, rot, sc = M.decompose(); R = rot.to_matrix()
+        base = Matrix.Translation(loc) @ R.to_4x4()
+        if t == 'BoxGeometry' and c == '#2b2f38':
+            dims = Vector((s['p']['width'] * sc.x, s['p']['height'] * sc.y, s['p']['depth'] * sc.z))
+            ax = max(range(3), key=lambda i: dims[i]); L = dims[ax]
+            cross = sorted(dims)[1]
+            axis_w = R.col[ax]
+            if abs(axis_w.y) > 0.95 and L > 1.0 and cross >= 0.05:
+                face = [i for i in range(3) if i != ax]
+                for fi in face[1:]:
+                    for sign in (-1, 1):
+                        y = -L / 2 + 0.45
+                        while y < L / 2 - 0.18:
+                            pos = Vector((0, 0, 0)); pos[ax] = y; pos[fi] = sign * (dims[fi] / 2)
+                            size = [0.024, 0.024, 0.024]; size[fi] = 0.01
+                            out.append({'owner': s['owner'], 'type': 'BoxGeometry', 'p': {'width': size[0], 'height': size[1], 'depth': size[2]},
+                                        'm': _flat(base @ Matrix.Translation(pos)), 'mat': {'c': '#141518', 'r': 0.6, 'mt': 0.0}})
+                            y += 0.1
+            if abs(axis_w.y) < 0.2 and L > 0.3 and s['owner'] == 'root' and loc.y - dims[1] / 2 < 0.03:
+                for sign in (-1, 1):
+                    pos = Vector((0, 0, 0)); pos[ax] = sign * (L / 2 + 0.006)
+                    size = [d * 1.1 for d in dims]; size[ax] = 0.014
+                    out.append({'owner': s['owner'], 'type': 'BoxGeometry', 'p': {'width': size[0], 'height': size[1], 'depth': size[2]},
+                                'm': _flat(base @ Matrix.Translation(pos)), 'mat': {'c': '#1f2228', 'r': 0.95, 'mt': 0.0}})
+        if t == 'CylinderGeometry' and c == '#cbd2dc' and s['p']['radiusTop'] * sc.x <= 0.016 and s['p']['height'] * sc.y > 0.9:
+            r = s['p']['radiusTop'] * sc.x
+            for y in (-0.27, 0.27):
+                out.append({'owner': s['owner'], 'type': 'CylinderGeometry', 'p': {'radiusTop': r * 1.1, 'radiusBottom': r * 1.1, 'height': 0.3, 'radialSegments': 12},
+                            'm': _flat(base @ Matrix.Translation((0, y, 0))), 'mat': {'c': '#5c6370', 'r': 0.45, 'mt': 0.6}})
+    return out
 
 
 def subdivide_long(me, maxlen=0.22):
@@ -203,6 +255,7 @@ def export(objs, name, draco=True):
 
 
 def build(name, spec, offset_x=0.0, draco=True, bake=True):
+    """Machines: call with spec['shapes'] = enrich(spec['shapes']) for the extra detail."""
     coll = collection('GCM_' + name)
     mats, owners = {}, {}
     for s in spec['shapes']:

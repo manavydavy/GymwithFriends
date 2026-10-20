@@ -46,7 +46,62 @@ def occluders(spec, coll):
     return out
 
 
+WALLISH = ('efe3cf', '2f8f8a', 'ff8a2b', '22252b', 'd9ccb5')
+
+
+def fix_ao(o, buried=0.08, pct=0.9):
+    """Corners buried inside other shapes bake black; borrow the face's lit corners instead, then normalise."""
+    me = o.data; d = me.color_attributes['AO'].data
+    vals = [c.color[0] for c in d]
+    for poly in me.polygons:
+        li = list(poly.loop_indices)
+        good = [vals[i] for i in li if vals[i] > buried]
+        if good and len(good) < len(li):
+            fill = max(good)
+            for i in li:
+                if vals[i] <= buried: vals[i] = fill
+    s = sorted(vals); p = s[int(len(s) * pct)] or 1.0
+    for i, c in enumerate(d):
+        v = min(1.0, vals[i] / p); c.color = (v, v, v, 1.0)
+    return p
+
+
+def bake_colours(o):
+    """Fold each face's colour and its ambient occlusion into vertex colours (linear) and collapse the many
+    colour materials into a few roughness/metalness classes named GCR_<rough>_<metal> (far fewer draw calls)."""
+    me = o.data
+    ao = me.color_attributes['AO'].data
+    base, cls = [], []
+    for mt in me.materials:
+        b = mt.node_tree.nodes.get('Principled BSDF')
+        base.append(tuple(b.inputs['Base Color'].default_value)[:3])
+        r = round(b.inputs['Roughness'].default_value * 4) / 4; mv = b.inputs['Metallic'].default_value
+        cls.append((max(0.25, r), 0.9 if mv > 0.5 else 0.3 if mv > 0.15 else 0.0))
+    keys = sorted(set(cls)); kidx = {k: i for i, k in enumerate(keys)}
+    col = me.color_attributes.new('COL', 'FLOAT_COLOR', 'CORNER'); cd = col.data
+    names = [mt.name for mt in me.materials]
+    for poly in me.polygons:
+        mi = poly.material_index; bc = base[mi]
+        wall = names[mi][4:10] in WALLISH            # big plain walls: no baked shading (too few vertices to hold it)
+        for li in poly.loop_indices:
+            a = ao[li].color[0]
+            f = 1.0 if wall else 0.8 + 0.2 * (max(0.0, a) ** 0.8)
+            cd[li].color = (bc[0] * f, bc[1] * f, bc[2] * f, 1.0)
+        poly.material_index = kidx[cls[mi]]
+    me.color_attributes.remove(me.color_attributes['AO'])
+    me.color_attributes.active_color = me.color_attributes['COL']
+    for i in range(len(me.materials)):
+        r, mm = keys[min(i, len(keys) - 1)]
+        name = 'GCR_%s_%s' % (r, mm)
+        mt = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+        mt.use_nodes = True; b = mt.node_tree.nodes.get('Principled BSDF')
+        b.inputs['Base Color'].default_value = (1, 1, 1, 1); b.inputs['Roughness'].default_value = r; b.inputs['Metallic'].default_value = mm
+        me.materials[i] = mt
+    return len(keys)
+
+
 def build_room(spec, bake=True):
+    """Run with G.QUALITY = 0.6 and spheres capped at 10x6 segments in the spec (what the game ships)."""
     coll = G.collection('GC_Room')
     occ_coll = G.collection('GC_RoomOccluders')
     mats, owners = {}, {}
@@ -71,7 +126,7 @@ def build_room(spec, bake=True):
         for f in me.polygons:
             f.use_smooth = True
         me.set_sharp_from_angle(angle=math.radians(35))
-        G.subdivide_long(me, 0.4)
+        G.subdivide_long(me, 0.9)
         old = bpy.data.objects.get(ow)
         if old:
             old.name = ow + '_old'
@@ -81,6 +136,8 @@ def build_room(spec, bake=True):
     floor = _floor_plane(coll)
     if bake:
         _bake(objs, [coll, occ_coll], dist=0.9)
+        for o in objs:
+            fix_ao(o); bake_colours(o)
     path = G.export(objs, 'room', True)
     tris = 0
     for o in objs:
