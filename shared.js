@@ -24,6 +24,7 @@
     askTime: 3,            // seconds to answer "anyone using this?"
     askCooldown: 3,
     shoveRange: 48,
+    useReach: 40,          // how close (from any side of a machine) you need to be to hop on
     shoveFatigue: 22,
     shoveCooldown: 3,
     shoveStun: 1.3,
@@ -149,6 +150,18 @@
 
   const dist = (a, b, c, d) => Math.hypot(a - c, b - d);
   const useSpot = m => ({ x: m.x + m.w / 2, y: m.y + m.h + 22 });
+  // Distance from a point to the edge of a machine (0 inside it). You can use a machine from any side.
+  const machDist = (m, x, y) => { const nx = Math.max(m.x, Math.min(x, m.x + m.w)), ny = Math.max(m.y, Math.min(y, m.y + m.h)); return Math.hypot(x - nx, y - ny); };
+  // The machine you're next to (closest edge; ties go to the closer middle), or -1
+  function nearMach(x, y, maxD, f) {
+    let b = -1, bd = maxD, bc = 1e9;
+    MACH.forEach((m, i) => {
+      if (f && !f(i)) return;
+      const d = machDist(m, x, y), c = Math.hypot(x - m.x - m.w / 2, y - m.y - m.h / 2);
+      if (d <= bd + 0.5 && (d < bd - 0.5 || c < bc)) { bd = Math.min(bd, d); bc = c; b = i; }
+    });
+    return b;
+  }
   const inRest = (x, y) => REST.some(r => dist(x, y, r.x, r.y) < r.r);
   const inRect = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   const stairAt = (x, y) => STAIRS.find(s => inRect(x, y, s));
@@ -211,5 +224,5 @@
     o.y = Math.max(72, Math.min(f.y + f.h - 15, o.y));
   }
 
-  Object.assign(out, { PODIUM, CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, TREADS, DESK, DECOR, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, stairDest, route, zoneOf, floorOf, collide, stepStaff, staffSees, angDiff });
+  Object.assign(out, { PODIUM, CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, machDist, nearMach, TREADS, DESK, DECOR, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, stairDest, route, zoneOf, floorOf, collide, stepStaff, staffSees, angDiff });
 })(typeof module !== 'undefined' ? module.exports : (window.SHARED = {}));

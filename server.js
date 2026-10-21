@@ -105,7 +105,9 @@ function stepOff(r, p) {
   if (p.on === null) return;
   const m = S.MACH[p.on];
   r.m[p.on].user = null; p.on = null; p.goldN = 0;
-  const u = useSpot(m); p.x = u.x; p.y = u.y; p.tp++;
+  // back where you got on (you can hop on from any side), or the front if that spot's no good any more
+  const h = p.hopFrom, ok = h && S.machDist(m, h.x, h.y) <= C.useReach + 10 && (() => { const o = { x: h.x, y: h.y }; S.collide(o); return Math.abs(o.x - h.x) < 1 && Math.abs(o.y - h.y) < 1; })();
+  const u = ok ? h : useSpot(m); p.x = u.x; p.y = u.y; p.tp++; p.hopFrom = null;
 }
 function clearClaim(r, p) {
   if (p.claim === null) return;
@@ -113,21 +115,13 @@ function clearClaim(r, p) {
   if (mm.claim && mm.claim.owner === p.id) mm.claim = null;
   p.claim = null;
 }
-function nearestMachine(p, maxD, f) {
-  let best = -1, bd = maxD;
-  S.MACH.forEach((m, i) => {
-    if (f && !f(i)) return;
-    const u = useSpot(m), d = dist(p.x, p.y, u.x, u.y);
-    if (d < bd) { bd = d; best = i; }
-  });
-  return best;
-}
+function nearestMachine(p, maxD, f) { return S.nearMach(p.x, p.y, maxD, f); }
 function hopOn(r, p, i) {
   const m = S.MACH[i];
   if (p.grp[m.g].pulled) { say(r, p, 'Your ' + S.GROUPS[m.g].n.toLowerCase() + ' is pulled. Train something else.', '#ff8a80'); return; }
   if (p.claim === i) { r.m[i].claim = null; p.claim = null; }
   r.asks = r.asks.filter(q => q.m !== i);
-  r.m[i].user = p.id; p.on = i;
+  r.m[i].user = p.id; p.on = i; p.hopFrom = { x: p.x, y: p.y };
   p.x = m.x + m.w / 2; p.y = m.y + m.h / 2; p.tp++;
   p.idle = 0; p.miss = 0;
 }
@@ -186,7 +180,7 @@ function act(r, p, a) {
 
   if (a === 'use') {
     if (p.on !== null) { stepOff(r, p); return; }
-    const i = nearestMachine(p, 52);
+    const i = nearestMachine(p, C.useReach + 6);   // a little slack for lag
     if (i < 0) { say(r, p, 'Get closer to a machine'); return; }
     const mm = r.m[i];
     if (mm.user !== null) { const u = r.players.get(mm.user); say(r, p, (u ? u.n : 'Someone') + ' is on it. Shove them?', '#ffb070'); return; }
@@ -236,7 +230,7 @@ function act(r, p, a) {
     for (const o of r.players.values()) {
       if (o === p || o.lock > 0) continue;
       let d = dist(p.x, p.y, o.x, o.y), sp = null;
-      if (o.on !== null) { const u = useSpot(S.MACH[o.on]); const du = dist(p.x, p.y, u.x, u.y); if (du < d) { d = du; sp = u; } }
+      if (o.on !== null) { const dm = S.machDist(S.MACH[o.on], p.x, p.y); if (dm <= C.useReach && dm < d) { d = dm; sp = useSpot(S.MACH[o.on]); } }
       if (d < bd) { bd = d; tgt = o; spot = sp; }
     }
     if (!tgt) { say(r, p, 'Nobody to shove'); return; }
@@ -559,7 +553,7 @@ function tick(r, dt) {
   for (const q of r.asks.slice()) {
     const by = r.players.get(q.by), owner = r.players.get(q.owner), mm = r.m[q.m];
     const u = useSpot(S.MACH[q.m]);
-    if (!by || !owner || !mm.claim || mm.claim.owner !== q.owner || by.on !== null || dist(by.x, by.y, u.x, u.y) > 90) {
+    if (!by || !owner || !mm.claim || mm.claim.owner !== q.owner || by.on !== null || S.machDist(S.MACH[q.m], by.x, by.y) > C.useReach + 40) {
       r.asks = r.asks.filter(x => x !== q); continue;
     }
     q.t -= dt;

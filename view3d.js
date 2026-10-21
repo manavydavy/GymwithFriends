@@ -130,7 +130,15 @@
       const tw = new T.Mesh(new T.BoxGeometry(0.55, 0.04, 0.36), G.std('#FFFFFF', 0.9)); towel.add(tw);
       const stripe = new T.Mesh(new T.BoxGeometry(0.55, 0.045, 0.06), new T.MeshStandardMaterial({ color: '#3C82FF', roughness: 0.8 })); stripe.position.z = 0.12; towel.add(stripe);
       towel.position.set(0.15, 1.15, 0.1); towel.rotation.set(0.15, 0.4, 0.1); towel.visible = false; b.g.add(towel);
-      return { b, m, hl, towel, stripe };
+      // reach ring on the floor: step inside it from any side and you can hop on
+      const R = SH.CFG.useReach * 0.02, hw = m.w * 0.01, hd = m.h * 0.01;
+      const rrect = (sh, o) => { const x0 = -hw - o, x1 = hw + o, y0 = -hd - o, y1 = hd + o, r = o;
+        sh.moveTo(x0 + r, y0); sh.lineTo(x1 - r, y0); sh.absarc(x1 - r, y0 + r, r, -Math.PI / 2, 0); sh.lineTo(x1, y1 - r); sh.absarc(x1 - r, y1 - r, r, 0, Math.PI / 2);
+        sh.lineTo(x0 + r, y1); sh.absarc(x0 + r, y1 - r, r, Math.PI / 2, Math.PI); sh.lineTo(x0, y0 + r); sh.absarc(x0 + r, y0 + r, r, Math.PI, Math.PI * 1.5); return sh; };
+      const outer = rrect(new T.Shape(), R), hole = rrect(new T.Path(), R - 0.07); outer.holes.push(hole);
+      const reach = new T.Mesh(new T.ShapeGeometry(outer, 10), new T.MeshBasicMaterial({ color: '#FFFFFF', transparent: true, opacity: 0.2, depthWrite: false }));
+      reach.rotation.x = -Math.PI / 2; reach.position.y = 0.045; reach.renderOrder = 2; reach.visible = false; b.g.add(reach);
+      return { b, m, hl, towel, stripe, reach };
     });
     staff = G.makeChar({ col: '#3DAE5A', skin: '#DDA877', hair: '#2B1D14' }); scene.add(staff.group);
     // yellow vision cone on the floor in front of the staff member
@@ -250,7 +258,7 @@
     up.visible = upVisible;
     const seen = new Set();
     // machines and the people on them
-    machines.forEach(({ b, m, hl, towel, stripe }, i) => {
+    machines.forEach(({ b, m, hl, towel, stripe, reach }, i) => {
       const st = S.m[i], user = st[0] !== null ? S.p.find(p => p.id === st[0]) : null, owner = st[1] !== null ? S.p.find(p => p.id === st[1]) : null;
       if (user) {
         const c = charFor(user); seen.add(user.id);
@@ -265,6 +273,10 @@
         const sc = Math.max(m.w, m.h) * 0.02 * 0.62 / 0.6 + 0.2; r.track.scale.setScalar(sc); r.ring.scale.setScalar(sc);
       } else b.set(0, false);
       towel.visible = !!owner; if (owner) setCol(stripe.material.color, owner.c);
+      { const on = ctx.reach === i, near = !user && S.st === 'playing' && (m.x >= 1900) === (ME.x >= 1900) && SH.machDist(m, ME.x, ME.y) < 160 && (m.x < 1900 || upVisible);
+        reach.visible = on || near;
+        if (reach.visible) { const want = on ? '#FFC93C' : '#FFFFFF'; if (reach.userData.c !== want) { reach.userData.c = want; setCol(reach.material.color, want); }
+          reach.material.opacity = on ? 0.6 + 0.3 * Math.sin(TT * 6) : 0.16; } }
       const gi = SH.GK.indexOf(m.g);
       const target = me && S.st === 'playing' && S.pg.includes(m.g) && me.gr[gi] < 100 && !me.pl[gi] && !user;
       hl.visible = !!target; if (target) hl.children[0].material.opacity = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(TT * 4));

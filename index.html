@@ -373,7 +373,7 @@ cx.fillStyle='#E2544B';cx.beginPath();cx.arc(0,1.5,1.6,0,7);cx.fill();cx.restore
 const ord=n=>n+(n%100>=11&&n%100<=13?'th':['th','st','nd','rd'][n%10]||'th');
 
 // ---------- sound ----------
-let SPLT=0,lastTick=null,musicKey='',finalAt=0;
+let REACHI=-1,SPLT=0,lastTick=null,musicKey='',finalAt=0;
 const sfx=(n,o)=>{if(window.SFX)SFX.play(n,o)};
 // louder up close, quieter far away or on the other floor, panned to where it is on screen
 function sfxAt(n,x,y,o){if(!window.SFX||!SFX.ready())return;o=o||{};const d=dist(x,y,ME.x,ME.y),same=SH.floorOf(x)===SH.floorOf(ME.x);
@@ -459,6 +459,7 @@ const now=performance.now();if(now-ME.lastSend>50&&(Math.abs(ME.x-ME.sx)>.3||Mat
 if(m.on!==null)ME.phase+=dt*C.markerSpeed*MACH[m.on].spd;
 const resting=m.on===null&&inRest(ME.x,ME.y);
 guide=null;
+REACHI=S.st==='playing'&&m.on===null&&!m.lk?nearMachine(C.useReach):-1;
 if(S.st==='playing'){
 if(m.on===null&&!m.lk){const fl=SH.floorOf(ME.x);
 if(!TUT.rest&&m.ft>=60&&!resting){let b=null,bd=1e9;REST.forEach(r=>{if(SH.floorOf(r.x)!==fl)return;const d=dist(ME.x,ME.y,r.x,r.y);if(d<bd){bd=d;b=r}});if(b)guide={x:b.x,y:b.y,t:'Rest here, you\'re filling up',sh:'Rest',c:'#8FD3FF',rest:b}}
@@ -551,7 +552,9 @@ let ui=null,jit=0;if(user){const a=an(user.id);ui=look(user);ui.L=liftOf(a,user)
 GM.machine(mc,ui,GROUPS[mc.g].c,jit);
 if(user)sweat(mc.x+mc.w/2,mc.y+mc.h/2,user.ft);
 wl(mc.name,mc.x+mc.w/2,mc.y-11,'#fff',11,true);
-const u=useSpot(mc);cx.strokeStyle='rgba(255,255,255,.16)';cx.lineWidth=2;cx.setLineDash([4,4]);cx.beginPath();cx.arc(u.x,u.y,12,0,7);cx.stroke();cx.setLineDash([]);
+{const R=C.useReach,near=SH.floorOf(mc.x)===SH.floorOf(ME.x)&&SH.machDist(mc,ME.x,ME.y)<160;   // reach ring: step inside it from any side
+if(i===REACHI){cx.strokeStyle='rgba(255,201,60,'+(.6+.3*Math.sin(TT*6))+')';cx.lineWidth=3;rr(mc.x-R,mc.y-R,mc.w+2*R,mc.h+2*R,R);cx.stroke()}
+else if(near&&!user){cx.strokeStyle='rgba(255,255,255,.18)';cx.lineWidth=2;cx.setLineDash([5,6]);rr(mc.x-R,mc.y-R,mc.w+2*R,mc.h+2*R,R);cx.stroke();cx.setLineDash([])}}
 if(owner){cx.save();cx.translate(mc.x+mc.w/2,mc.y+mc.h/2);cx.rotate(-.2);cx.fillStyle='#fff';cx.fillRect(-20,-10,40,20);cx.fillStyle=owner.c;cx.fillRect(-20,4,40,5);cx.restore();
 const f=Math.max(0,st[2]/C.claimDuration);cx.strokeStyle=owner.c;cx.lineWidth=4;cx.beginPath();cx.arc(mc.x+mc.w-10,mc.y+10,8,-Math.PI/2,-Math.PI/2+f*Math.PI*2);cx.stroke()}});
 // staff
@@ -699,7 +702,7 @@ cx.fillStyle='rgba(15,17,21,.92)';rr(bx-6,by-18,bw2+12,44,8);cx.fill();
 cx.font='700 11px Inter, sans-serif';cx.textAlign='left';cx.fillStyle=GROUPS[mc.g].c;cx.fillText(GROUPS[mc.g].n+' '+m.gr[gi]+'%'+(S.pg.includes(mc.g)?'':' (off program, half gains)'),bx,by-8);
 cx.fillStyle='#4C5361';cx.fillRect(bx,by,bw2,16);const zw=zoneW(m);cx.fillStyle='#2E9E4A';cx.fillRect(bx+(ME.zc-zw/2)*bw2,by,zw*bw2,16);cx.fillStyle='#FFC93C';cx.fillRect(bx+(ME.zc-C.perfectWidth/2)*bw2,by,C.perfectWidth*bw2,16);
 const pos=.5+.5*Math.sin(ME.phase);cx.fillStyle='#fff';cx.fillRect(bx+pos*bw2-2,by-3,4,22)}
-else if(!m.lk){const i=nearMachine(52);if(i>=0){const mc=MACH[i],st=S.m[i],gi=GK.indexOf(mc.g);const u=st[0]!==null?byId(st[0]):null,o=st[1]!==null&&st[1]!==myId?byId(st[1]):null;
+else if(!m.lk){const i=nearMachine(C.useReach);if(i>=0){const mc=MACH[i],st=S.m[i],gi=GK.indexOf(mc.g);const u=st[0]!==null?byId(st[0]):null,o=st[1]!==null&&st[1]!==myId?byId(st[1]):null;
 const t=u?'Shove '+u.n+'?':o?'Ask '+o.n+' if they\'re using it':m.pl[gi]?'Pulled: can\'t train '+GROUPS[mc.g].n.toLowerCase():'Use '+mc.name+' ('+GROUPS[mc.g].n+')';label(t,sx,in3D?sy+28:sy+46*Z+8,'#FFC93C',12,true)}}
 // asks
 const askMe=S.ak.find(q=>q.ow===myId),askMine=S.ak.find(q=>q.by===myId);
@@ -711,7 +714,7 @@ if(banner){cx.globalAlpha=Math.min(1,banner.time);cx.font='400 '+(small?15:21)+'
 if(hintMsg&&!askMe){cx.font='600 13px Inter, sans-serif';const maxW=TOUCH?Math.min(420,VW-16):Math.min(460,VW-mw-44);const lines=wrap(hintMsg.t,maxW-20);const hh=lines.length*17+14;const hy=TOUCH?62+Math.round(82*(small?.86:1))+8:VH-hh-10-(IN3D()?46:0);const hx=TOUCH?(VW-maxW)/2:8;
 cx.globalAlpha=Math.min(1,hintMsg.time);cx.fillStyle='rgba(47,111,224,.95)';rr(hx,hy,maxW,hh,10);cx.fill();cx.fillStyle='#fff';cx.textAlign='left';lines.forEach((l,i)=>cx.fillText(l,hx+10,hy+15+i*17));cx.globalAlpha=1}}
 
-function nearMachine(maxD,f){let b=-1,bd=maxD;MACH.forEach((mc,i)=>{if(f&&!f(i))return;const u=useSpot(mc);const d=dist(ME.x,ME.y,u.x,u.y);if(d<bd){bd=d;b=i}});return b}
+function nearMachine(maxD,f){return SH.nearMach(ME.x,ME.y,maxD,f)}
 
 function drawLabels3D(m){const P=V3D.project,showUp=V3D.upVisible(),myF=SH.floorOf(ME.x);
 const lab=(t,x,y,h,c,sz)=>{if(SH.floorOf(x)===1&&!showUp)return;const s=P(x,y,h);if(s)label(t,s[0],s[1],c,sz,true)};
@@ -730,7 +733,7 @@ if(!fin)pops.forEach(p=>{cx.globalAlpha=Math.max(0,Math.min(1,p.a));const s=P(p.
 if(S.st==='playing'&&S.tm<20){cx.fillStyle='rgba(5,6,10,'+((20-S.tm)/20*.3)+')';cx.fillRect(0,0,VW,VH)}}
 function draw(){const m=me();
 if(VIEW3D&&window.V3D&&V3D.ready){cx.setTransform(DPR,0,0,DPR,0,0);cx.clearRect(0,0,VW,VH);if(!S)return;
-V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT,dt:DT,GA,vo:voNow,cam:{yaw:camYawNow(),w:CAMW(),p:ME.camP||0},crownId:crownId()});drawLabels3D(m);}else{
+V3D.render({S,myId,ME,disp,an,liftOf,jitOf,TT,dt:DT,GA,vo:voNow,cam:{yaw:camYawNow(),w:CAMW(),p:ME.camP||0},crownId:crownId(),reach:REACHI});drawLabels3D(m);}else{
 const fin=!!S&&S.st==='final',FX=fin?640:ME.x,vw=VW/Z,vh=VH/Z,FY=fin?845+vh*.16:ME.y,fl=SH.FLOORS[SH.floorOf(FX)];cam.x=fl.w<=vw?fl.x+(fl.w-vw)/2:Math.max(fl.x,Math.min(fl.x+fl.w-vw,FX-vw/2));const padB=TOUCH||fin?vh*0.32:40;cam.y=fl.h+padB<=vh?fl.y+(fl.h-vh)/2:Math.max(-40,Math.min(fl.y+fl.h-vh+padB,FY-vh/2));
 cx.setTransform(DPR,0,0,DPR,0,0);cx.fillStyle='#2B303A';cx.fillRect(0,0,VW,VH);
 if(!S)return;
@@ -750,12 +753,12 @@ function syncButtons(){if(!TOUCH)return;const m=me();const live=!!(m&&S.st==='pl
 $('bChat').hidden=!live;$('bSprint').hidden=!live||!(m&&m.on===null);if($('bSprint').hidden)SPR.touch=false;if(!live){$('emotes').hidden=true;return}
 const busy=m.lk&&m.on===null;
 if(m.on!==null)setBtn('main','Rep',!!(m.lo||m.st),false);
-else{const i=busy?-1:nearMachine(52);let t='Hop on',d=true;if(i>=0){const st=S.m[i],gi=GK.indexOf(MACH[i].g);if(st[0]!==null)t='Taken';else if(st[1]!==null&&st[1]!==myId){t='Ask<small>"Using this?"</small>';d=!!m.ac}else if(m.pl[gi])t='Pulled';else{t='Hop on<small>'+MACH[i].name+'</small>';d=false}}setBtn('main',t,d,false)}
+else{const i=busy?-1:nearMachine(C.useReach);let t='Hop on',d=true;if(i>=0){const st=S.m[i],gi=GK.indexOf(MACH[i].g);if(st[0]!==null)t='Taken';else if(st[1]!==null&&st[1]!==myId){t='Ask<small>"Using this?"</small>';d=!!m.ac}else if(m.pl[gi])t='Pulled';else{t='Hop on<small>'+MACH[i].name+'</small>';d=false}}setBtn('main',t,d,false)}
 setBtn('off','Step off',false,m.on===null);
 const cl=m.cl!==null?S.m[m.cl]:null;const free=!busy&&nearMachine(C.throwRange,j=>{const st=S.m[j];return st[0]===null&&(st[1]===null||st[1]===myId)&&j!==m.on&&j!==m.cl})>=0;
 if(m.tc>0){setBtn('towel','Towel<small>'+m.tc+'s</small>',true,false);setBtn('wipe','Wipe<small>'+m.tc+'s</small>',true,false)}
 else{setBtn('towel','Towel'+(cl&&cl[1]===myId?'<small>'+Math.ceil(cl[2])+'s</small>':''),!free,false);setBtn('wipe','Wipe',m.ft<5||!!(m.lo||m.st),false)}
-let near=false;if(m.on===null&&!busy){near=S.p.some(p=>{if(p.id===myId||p.lo)return false;const d=disp[p.id];if(!d)return false;if(dist(ME.x,ME.y,d.x,d.y)<C.shoveRange)return true;if(p.on!==null){const u=useSpot(MACH[p.on]);return dist(ME.x,ME.y,u.x,u.y)<C.shoveRange}return false})}
+let near=false;if(m.on===null&&!busy){near=S.p.some(p=>{if(p.id===myId||p.lo)return false;const d=disp[p.id];if(!d)return false;if(dist(ME.x,ME.y,d.x,d.y)<C.shoveRange)return true;if(p.on!==null)return SH.machDist(MACH[p.on],ME.x,ME.y)<=C.useReach;return false})}
 setBtn('shove',m.sc>0?'Shove<small>'+m.sc+'s</small>':'Shove',!near||m.sc>0,m.on!==null);
 setBtn('yep','Yep, using it',false,!S.ak.some(q=>q.ow===myId))}
 
