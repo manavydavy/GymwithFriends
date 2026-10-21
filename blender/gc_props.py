@@ -279,7 +279,99 @@ def gymbag():
     return P.out()
 
 
-MAKERS = {'vending': vending, 'bag': heavybag, 'ropes': ropes, 'gymbag': gymbag}
+# ---------------- the toilets ----------------
+PORC, CHROME = mat('#F4F6F8', 0.22), mat('#C9CED6', 0.28, 0.85)
+
+
+def toilet(P, x, z0):
+    """close-coupled toilet with its back at z0, facing +Z"""
+    bowl = [(0, 0.0), (0.13, 0.0), (0.15, 0.06), (0.16, 0.2), (0.19, 0.34), (0.2, 0.39), (0.17, 0.4), (0.0, 0.4)]
+    P.lathe(bowl, (x, 0, z0 + 0.36), PORC, segs=28, sc=(1, 1, 1.32))
+    P.torus(0.16, 0.022, (x, 0.415, z0 + 0.37), mat('#FFFFFF', 0.3), rot=(math.pi / 2, 0, 0), n1=28, n2=8, sc=(1, 1.3, 1))
+    P.box(0.42, 0.4, 0.17, (x, 0.62, z0 + 0.1), PORC, 0.04, segs=3)
+    P.box(0.44, 0.04, 0.19, (x, 0.84, z0 + 0.1), PORC, 0.015)
+    P.cyl(0.03, 0.03, 0.012, (x, 0.865, z0 + 0.1), CHROME, segs=14)
+    P.box(0.36, 0.42, 0.03, (x, 0.64, z0 + 0.2), mat('#FFFFFF', 0.3), 0.012, rot=(-0.12, 0, 0))   # lid up
+
+
+def stalls():
+    P = Parts()
+    panel, door, post = mat('#C9D2DA', 0.45), mat('#2F8F8A', 0.45), mat('#5E6B76', 0.45, 0.2)
+    W, D, n = 5.0, 1.52, 3
+    cw = W / n; back, front = -D / 2, D / 2
+    for k in range(n + 1):
+        x = -W / 2 + k * cw
+        P.box(0.025, 1.85, D - 0.06, (x, 0.15 + 0.925, -0.03), panel, 0.008)
+        P.box(0.07, 2.05, 0.07, (x, 1.025, front - 0.035), post, 0.01)
+        P.box(0.08, 0.1, 0.08, (x, 0.05, front - 0.035), CHROME, 0.01)
+    P.rod((-W / 2, 2.03, front - 0.035), (W / 2, 2.03, front - 0.035), 0.018, CHROME)
+    opens = [0.45, 0.0, 1.2]
+    for k in range(n):
+        x0 = -W / 2 + k * cw
+        P.box(cw - 0.72, 1.85, 0.025, (x0 + 0.035 + (cw - 0.72) / 2, 1.075, front - 0.04), panel, 0.008)   # fixed front panel
+        hx, dw, a = x0 + cw - 0.035, 0.6, opens[k]                                                        # door hinged on the right
+        c = V((hx - math.cos(a) * dw / 2, 1.075, front - 0.04 - math.sin(a) * dw / 2))
+        P.box(dw, 1.85, 0.03, c, door, 0.01, rot=(0, a, 0))
+        hp = V((hx - math.cos(a) * (dw - 0.07), 1.05, front - 0.04 - math.sin(a) * (dw - 0.07))) + V((math.sin(a) * 0.03, 0, math.cos(a) * 0.03))
+        P.box(0.03, 0.12, 0.03, hp, CHROME, 0.006, rot=(0, a, 0))
+        cx0 = x0 + cw / 2
+        toilet(P, cx0, back + 0.02)
+        P.cyl(0.055, 0.055, 0.11, (x0 + 0.06, 0.75, back + 0.6), mat('#FFFFFF', 0.8), rot=(0, 0, math.pi / 2), segs=16)   # loo roll
+        P.cyl(0.014, 0.014, 0.14, (x0 + 0.06, 0.75, back + 0.6), CHROME, rot=(0, 0, math.pi / 2), segs=8)
+        P.box(0.08, 0.03, 0.03, (x0 + 0.03, 0.75, back + 0.6), CHROME, 0.005)
+    return P.out()
+
+
+def urinals():
+    P = Parts()
+    div = mat('#C9D2DA', 0.45)
+    for k, x in enumerate((-1.06, 0.0, 1.06)):
+        P.box(0.4, 0.66, 0.3, (x, 0.86, -0.13), PORC, 0.12, segs=4)
+        P.sphere(0.15, (x, 0.66, -0.0), mat('#E3EBF0', 0.2), sc=(1, 0.45, 0.75), u=24, v=12)
+        P.cyl(0.05, 0.05, 0.03, (x, 0.6, -0.06), mat('#5FB3B0', 0.6), segs=12)                      # urinal cake
+        P.rod((x, 1.18, -0.24), (x, 1.5, -0.24), 0.018, CHROME)
+        P.box(0.09, 0.12, 0.08, (x, 1.52, -0.22), CHROME, 0.015)
+        P.rod((x, 1.5, -0.2), (x, 1.5, -0.12), 0.012, CHROME)
+    for x in (-0.53, 0.53):
+        P.box(0.02, 0.85, 0.55, (x, 1.05, -0.0), div, 0.01)
+        P.box(0.03, 0.03, 0.55, (x, 1.48, -0.0), CHROME, 0.008)
+    return P.out()
+
+
+def vanity():
+    P = Parts()
+    stone, skirt, white = mat('#4A5560', 0.3), mat('#3A424B', 0.5), mat('#FFFFFF', 0.4)
+    P.box(3.4, 0.06, 0.6, (0, 0.86, 0), stone, 0.012)
+    P.box(3.4, 0.24, 0.04, (0, 0.72, 0.27), skirt, 0.008)
+    for x in (-1.1, 0.0, 1.1):
+        P.lathe([(0, 0.0), (0.12, 0.0), (0.19, 0.05), (0.21, 0.09), (0.215, 0.1), (0.0, 0.1)], (x, 0.8, 0.03), PORC, segs=28, sc=(1, 1, 0.7))
+        P.cyl(0.165, 0.165, 0.012, (x, 0.897, 0.03), mat('#DDE6EC', 0.2), segs=28)
+        P.cyl(0.02, 0.02, 0.014, (x, 0.9, 0.03), CHROME, segs=10)
+        P.rod((x, 0.89, -0.21), (x, 1.07, -0.21), 0.02, CHROME)
+        P.rod((x, 1.06, -0.21), (x, 1.06, -0.08), 0.016, CHROME)
+        P.cyl(0.03, 0.03, 0.03, (x + 0.08, 0.92, -0.21), CHROME, segs=12)
+        P.box(0.08, 0.16, 0.07, (x + 0.32, 0.98, -0.22), white, 0.015)                                # soap
+        P.rod((x + 0.32, 0.96, -0.19), (x + 0.32, 0.96, -0.14), 0.008, CHROME)
+    P.box(0.3, 0.36, 0.2, (-1.95, 1.25, -0.18), white, 0.04, segs=3)                                 # hand dryer
+    P.box(0.16, 0.05, 0.08, (-1.95, 1.05, -0.12), CHROME, 0.012)
+    P.cyl(0.17, 0.15, 0.6, (-1.95, 0.3, -0.05), mat('#8E9AA5', 0.4, 0.5), segs=24)                  # bin
+    return P.out()
+
+
+def wetfloor():
+    P = Parts()
+    yel, blk = mat('#FFC93C', 0.5), mat('#15171C', 0.6)
+    for k in (-1, 1):
+        rot = (-k * 0.2, 0, 0)
+        c = (0, 0.32, k * 0.07)
+        P.box(0.32, 0.62, 0.018, c, yel, 0.01, rot=rot)
+        P.box(0.2, 0.04, 0.02, (0, 0.5, k * 0.035), blk, 0.004, rot=rot)
+        P.box(0.12, 0.12, 0.02, (0, 0.3, k * 0.075), blk, 0.01, rot=(-k * 0.2, 0, 0.785))
+    P.box(0.14, 0.04, 0.04, (0, 0.65, 0), yel, 0.01)
+    return P.out()
+
+
+MAKERS = {'vending': vending, 'bag': heavybag, 'ropes': ropes, 'gymbag': gymbag, 'stalls': stalls, 'urinals': urinals, 'vanity': vanity, 'wetfloor': wetfloor}
 
 
 def make(k):

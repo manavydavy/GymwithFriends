@@ -346,6 +346,30 @@ def step_on():
     return mix((tone(np.linspace(220, 160, int(d * SR)), d) * env(d, 0.002, 0.04), 0, 1), (bp(noise(0.05), 400, 3000) * env(0.05, 0.001, 0.01), 0, 0.6))
 
 
+def flush():
+    """toilet flush: a rushing swirl that rises then drains away with a gurgle"""
+    d = 2.6; x = noise(d)
+    rush = sweep_bp(x, 500, 1600, 1.1) * np.minimum(1, t(d) / 0.15) * np.exp(-np.maximum(0, t(d) - 0.9) / 0.6)
+    swirl = rush * (1 + 0.35 * np.sin(2 * np.pi * 5 * t(d)))
+    low = lp(noise(d), 400) * np.exp(-t(d) / 0.9) * 0.8
+    parts = [(swirl, 0, 1), (low, 0, 1)]
+    for k in range(10):
+        bd = 0.05; f0 = rng.uniform(250, 500)
+        parts.append((tone(np.linspace(f0, f0 * 1.8, int(bd * SR)), bd) * env(bd, 0.002, 0.02), 1.4 + k * 0.09 + rng.uniform(0, 0.05), 0.35))
+    click = bp(noise(0.03), 800, 3000) * env(0.03, 0.001, 0.008)
+    return reverb(mix((click, 0, 0.6), *[(a, s0 + 0.05, g) for a, s0, g in parts]), 0.7, 0.2)
+
+
+def tinkle():
+    """a short trickle of water into water"""
+    d = 0.7; x = bp(noise(d), 1500, 6000) * (0.6 + 0.4 * np.sin(2 * np.pi * 13 * t(d)) ** 2)
+    parts = [(x * env(d, 0.05, None, release=0.2), 0, 0.45)]
+    for k in range(8):
+        bd = 0.03; f0 = rng.uniform(900, 1800)
+        parts.append((tone(np.linspace(f0, f0 * 1.5, int(bd * SR)), bd) * env(bd, 0.001, 0.01), rng.uniform(0, 0.6), 0.25))
+    return mix(*parts)
+
+
 # ---------------- music: an 8-bar workout loop ----------------
 
 def music():
@@ -446,6 +470,8 @@ if __name__ == '__main__':
     save('gassed', sad_trombone())
     save('sprint', sprint())
     save('step', step_on())
+    save('flush', flush())
+    save('tinkle', tinkle())
     m, L = music()
     save('music', m, peak=0.8, br='112k')
     with open(os.path.join(OUT, 'music.json'), 'w') as f:

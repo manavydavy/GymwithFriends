@@ -21,15 +21,35 @@ def _cone(bm, s):
     bm.from_mesh(me); bpy.data.meshes.remove(me)
 
 
+def ensure_machines(spec_mach):
+    """After a fresh Blender start: rebuild the machines (no bake) so the room bake can use them as occluders."""
+    G.SPEC_MACH = spec_mach
+    built = []
+    for t, sp in spec_mach.items():
+        if 'GCM_' + t in bpy.data.collections and len(bpy.data.collections['GCM_' + t].objects):
+            continue
+        q = G.QUALITY; G.QUALITY = 0.6
+        try:
+            G.build(t, dict(sp, shapes=G.enrich(sp['shapes'])), 0.0, True, False)
+        finally:
+            G.QUALITY = q
+        built.append(t)
+    return built
+
+
 def occluders(spec, coll):
     """Copies of every machine at its place in the gym, so the bake sees them."""
     out = []
     for i, m in enumerate(spec['machines']):
         t = m['type']
         if t == 'squat':
+            if 'GC_SquatRack_Export' not in bpy.data.collections:
+                continue       # the hand-built rack isn't in this Blender session: no contact shadow for it
             src = [o for o in bpy.data.collections['GC_SquatRack_Export'].objects if o.type == 'MESH']
             base = Matrix.Identity(4)
         else:
+            if 'GCM_' + t not in bpy.data.collections:
+                continue
             src = [o for o in bpy.data.collections['GCM_' + t].objects if o.type == 'MESH']
             base = None
         for o in src:
