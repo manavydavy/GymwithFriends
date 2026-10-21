@@ -24,10 +24,10 @@
     askTime: 3,            // seconds to answer "anyone using this?"
     askCooldown: 3,
     shoveRange: 48,
-    useReach: 40,
+    useReach: 40,          // how close (from any side of a machine) you need to be to hop on
     fluidRate: 16,         // bladder fills this much per second while you rest at a fountain
     drainRate: 45,         // ...and empties this fast in the toilets
-    bustSlow: 0.7,         // walking speed while you're busting (bladder full); no sprinting or drinking either          // how close (from any side of a machine) you need to be to hop on
+    bustSlow: 0.7,         // walking speed while you're busting (bladder full); no sprinting or drinking either
     shoveFatigue: 22,
     shoveCooldown: 3,
     shoveStun: 1.3,
