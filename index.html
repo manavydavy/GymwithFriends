@@ -100,10 +100,14 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-o
 
 .touchui{position:absolute;inset:0;pointer-events:none;z-index:2}
 .touchui[hidden]{display:none}
-#joyZone{position:absolute;left:0;top:56px;bottom:0;width:58%;pointer-events:auto;touch-action:none}
-#joy{position:absolute;left:84px;bottom:60px;width:120px;height:120px;margin:0 0 0 -60px;border-radius:50%;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.3);opacity:.4;pointer-events:none;transition:opacity .2s}
-#joy.on{opacity:1;transition:none;margin:-60px 0 0 -60px}
-#knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#joyZone{position:absolute;left:0;bottom:0;width:48%;height:46%;pointer-events:auto;touch-action:none}
+#joy{position:absolute;left:calc(14px + env(safe-area-inset-left,0px));bottom:calc(26px + env(safe-area-inset-bottom,0px));width:118px;height:118px;pointer-events:none;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))}
+#joy svg{position:absolute;inset:0;width:100%;height:100%}
+#joy .rim{transition:stroke .15s,opacity .15s}
+#joy.on .rim{stroke:#FFC93C;opacity:1}
+#joy .arr{transition:fill .15s}#joy.on .arr{fill:rgba(255,201,60,.9)}
+#knob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;will-change:transform}
+#knob svg{width:100%;height:100%;filter:drop-shadow(0 4px 5px rgba(0,0,0,.5))}
 .tb{position:absolute;pointer-events:auto;touch-action:none;border:0;border-radius:50%;font:800 14px/1.1 Inter,system-ui,sans-serif;color:#fff;background:rgba(21,23,28,.75);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 .tb small{font-size:11px;font-weight:600;opacity:.85;margin-top:2px;max-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tb.down{transform:scale(.9)}
@@ -112,11 +116,12 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-o
 #bMain{right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));width:92px;height:92px;background:#FF8A2B;color:#15171C;font-size:18px;box-shadow:0 4px 0 #B85A10}
 #bTowel{right:calc(120px + env(safe-area-inset-right,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));width:66px;height:66px}
 #bShove{right:calc(26px + env(safe-area-inset-right,0px));bottom:calc(120px + env(safe-area-inset-bottom,0px));width:66px;height:66px}
-#bWipe{right:calc(196px + env(safe-area-inset-right,0px));bottom:calc(26px + env(safe-area-inset-bottom,0px));width:58px;height:58px;font-size:13px;background:rgba(40,90,120,.8)}
+#bWipe{right:calc(186px + env(safe-area-inset-right,0px));bottom:calc(96px + env(safe-area-inset-bottom,0px));width:58px;height:58px;font-size:13px;background:rgba(40,90,120,.8)}
 #bOff{right:calc(108px + env(safe-area-inset-right,0px));bottom:calc(102px + env(safe-area-inset-bottom,0px));width:58px;height:58px;font-size:12px}
 #bYep{right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(200px + env(safe-area-inset-bottom,0px));height:56px;padding:0 20px;border-radius:28px;background:#2F6FE0;font-size:16px;box-shadow:0 4px 0 #1C4A9E;animation:yep .55s infinite alternate}
 #bSprint{right:calc(108px + env(safe-area-inset-right,0px));bottom:calc(102px + env(safe-area-inset-bottom,0px));width:62px;height:62px;font-size:13px;background:rgba(150,40,30,.8)}
 #bSprint.on{background:#E2544B;box-shadow:inset 0 0 0 3px #fff}
+@media (max-width:389px){#joy{width:108px;height:108px}#knob{width:50px;height:50px;margin:-25px 0 0 -25px}#bWipe{right:calc(30px + env(safe-area-inset-right,0px));bottom:calc(196px + env(safe-area-inset-bottom,0px))}}
 #bChat{top:8px;right:8px;width:48px;height:40px;font-size:13px;border-radius:10px}
 #emotes{position:absolute;top:54px;right:8px;display:flex;flex-direction:column;gap:6px;pointer-events:auto;z-index:2}
 #emotes[hidden]{display:none}
@@ -140,7 +145,20 @@ html.touch .stage{border-radius:0;border:0}
 <button type="button" id="sndBtn" hidden></button>
 <div class="touchui" id="touch" hidden>
 <div id="joyZone" aria-label="Drag to move"></div>
-<div id="joy"><div id="knob"></div></div>
+<div id="joy" aria-hidden="true"><svg viewBox="0 0 136 136"><defs>
+<radialGradient id="jb" cx="50%" cy="38%" r="65%"><stop offset="0" stop-color="#3A404B"/><stop offset=".7" stop-color="#22262E"/><stop offset="1" stop-color="#15181D"/></radialGradient>
+<radialGradient id="kb" cx="38%" cy="30%" r="75%"><stop offset="0" stop-color="#FF9A4A"/><stop offset=".6" stop-color="#E8601F"/><stop offset="1" stop-color="#A93F12"/></radialGradient>
+<radialGradient id="kh" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".5" stop-color="#C9CED6"/><stop offset="1" stop-color="#7D848F"/></radialGradient></defs>
+<circle cx="68" cy="68" r="66" fill="url(#jb)"/>
+<circle class="rim" cx="68" cy="68" r="62" fill="none" stroke="#2F8F8A" stroke-width="4" opacity=".9"/>
+<circle cx="68" cy="68" r="55" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1.5" stroke-dasharray="3 6"/>
+<circle cx="68" cy="68" r="36" fill="rgba(0,0,0,.28)"/>
+<g class="arr" fill="rgba(255,255,255,.4)"><path d="M68 12l8 9H60z"/><path d="M68 124l-8-9h16z"/><path d="M12 68l9-8v16z"/><path d="M124 68l-9 8V60z"/></g>
+</svg><div id="knob"><svg viewBox="0 0 64 64">
+<circle cx="32" cy="32" r="30" fill="url(#kb)"/><circle cx="32" cy="32" r="30" fill="none" stroke="#7E2E0C" stroke-width="2"/>
+<circle cx="32" cy="32" r="21" fill="none" stroke="rgba(0,0,0,.22)" stroke-width="3"/>
+<circle cx="32" cy="32" r="10" fill="url(#kh)"/><circle cx="32" cy="32" r="4" fill="#3A3E47"/>
+<path d="M14 20a20 20 0 0 1 12-9" stroke="rgba(255,255,255,.45)" stroke-width="3" stroke-linecap="round" fill="none"/></svg></div></div>
 <button type="button" class="tb" id="bChat" data-a="chat" aria-label="Quick chat">Chat</button>
 <div id="emotes" hidden></div>
 <button type="button" class="tb" id="bYep" data-a="answer" hidden>Yep, using it</button>
@@ -784,13 +802,13 @@ addEventListener('blur',()=>{K.clear();SPR.key=false;SPR.touch=false});
 
 // ---------- touch buttons + floating joystick ----------
 document.querySelectorAll('.tb[data-a]').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();b.classList.add('down');act(b.dataset.a)});['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>b.classList.remove('down')));b.addEventListener('contextmenu',e=>e.preventDefault())});
-(function(){const zone=$('joyZone'),joy=$('joy'),knob=$('knob'),R=52;let id=null,ox=0,oy=0;
-function home(){joy.classList.remove('on');joy.style.left='84px';joy.style.top='';joy.style.bottom='60px';knob.style.transform='';JV.x=0;JV.y=0}
-function move(e){const r=stage.getBoundingClientRect();let dx=e.clientX-r.left-ox,dy=e.clientY-r.top-oy;const d=Math.hypot(dx,dy);
-if(d>R){const ex=d-R;ox+=dx/d*ex;oy+=dy/d*ex;dx=dx/d*R;dy=dy/d*R;joy.style.left=ox+'px';joy.style.top=oy+'px'}
+(function(){const zone=$('joyZone'),joy=$('joy'),knob=$('knob'),R=42;let id=null;
+// fixed stick: it stays put in the corner; touch anywhere around it and the knob follows your thumb
+function home(){joy.classList.remove('on');knob.style.transform='';JV.x=0;JV.y=0}
+function move(e){const r=joy.getBoundingClientRect(),cx0=r.left+r.width/2,cy0=r.top+r.height/2;let dx=e.clientX-cx0,dy=e.clientY-cy0;const d=Math.hypot(dx,dy);
+if(d>R){dx=dx/d*R;dy=dy/d*R}
 knob.style.transform='translate('+dx+'px,'+dy+'px)';const m=Math.min(1,Math.hypot(dx,dy)/R);if(m<.15){JV.x=0;JV.y=0}else{const k=Math.min(1,(m-.15)/.7)/m;JV.x=dx/R*k;JV.y=dy/R*k}}
-zone.addEventListener('pointerdown',e=>{if(id!==null)return;e.preventDefault();$('emotes').hidden=true;id=e.pointerId;try{zone.setPointerCapture(id)}catch(_){}
-const r=stage.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top;joy.style.bottom='';joy.style.left=ox+'px';joy.style.top=oy+'px';joy.classList.add('on');knob.style.transform=''});
+zone.addEventListener('pointerdown',e=>{if(id!==null)return;e.preventDefault();$('emotes').hidden=true;id=e.pointerId;try{zone.setPointerCapture(id)}catch(_){}joy.classList.add('on');move(e)});
 zone.addEventListener('pointermove',e=>{if(e.pointerId===id)move(e)});
 ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>zone.addEventListener(ev,e=>{if(e.pointerId===id){id=null;home()}}));
 home()})();
