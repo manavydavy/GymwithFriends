@@ -923,6 +923,20 @@
     mesh(new T.TorusGeometry(0.07, 0.018, 6, 12, Math.PI), std(col || '#2B2F38', 0.5, 0.3), g, [0, 0.2, 0]);
     return g;
   }
+  // Small square tiles (toilet floor and walls). One texture tile is 1.2 m: 8 x 8 tiles of 15 cm.
+  function tileTexture(wall, rx, ry) {
+    const N = 256, cv = document.createElement('canvas'); cv.width = cv.height = N; const x = cv.getContext('2d'), k = N / 8;
+    x.fillStyle = '#A9B3BC'; x.fillRect(0, 0, N, N);
+    let seed = wall ? 3 : 9; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) {
+      const accent = wall ? j === 5 : (i + j * 3) % 11 === 0;
+      const v = 232 + Math.floor(rnd() * 14);
+      x.fillStyle = accent ? '#5FB3B0' : 'rgb(' + v + ',' + (v + 3) + ',' + (v + 6) + ')';
+      x.fillRect(i * k + 1.5, j * k + 1.5, k - 3, k - 3);
+      x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(i * k + 3, j * k + 3, k - 10, 2);
+    }
+    const t = new T.CanvasTexture(cv); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = 4; return t;
+  }
   // Drinks behind the glass of the vending machine
   let vendCv = null;
   function vendTex() {
@@ -1021,6 +1035,8 @@
     sign(F, [{ t: 'THANKS FOR COMING', size: 90, c: '#15171C' }, { t: 'now get back in here', size: 54, c: '#15171C', weight: '700' }], 3.2, 0.8, [X(1080), 4.0, zf - 0.005], [0, Math.PI, 0], { bg: '#FFC93C' });
     const winM = new T.MeshStandardMaterial({ color: '#BFE6F5', emissive: '#87C5DF', emissiveIntensity: 0.55, roughness: 0.2 });
     [150, 450, 1350, 1650].forEach(x => box(2.4, 1.0, 0.04, winM, F, [X(x), 7.7, zf - 0.02]));
+    // frosted film on the windows in front of the toilets
+    { const fz = mesh(new T.PlaneGeometry((1800 - 1346) * SCALE, top - 0.7), new T.MeshStandardMaterial({ color: '#E8F1F5', roughness: 0.9, transparent: true, opacity: 0.88 }), F, [X(1573), (top + 0.62) / 2, zf - 0.02], [0, Math.PI, 0]); fz.castShadow = false; }
     const glass = mesh(new T.PlaneGeometry(36.2, top - 0.62), new T.MeshStandardMaterial({ color: '#CFE8F2', roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.12, depthWrite: false }), F, [0, (top + 0.62) / 2, zf + 0.01], [0, Math.PI, 0]);
     // outside: footpath, kerb, road and the street across it
     const ground = (w, d, z, c, y) => mesh(new T.PlaneGeometry(w, d), std(c, 0.95), F, [0, y || 0, z], [-Math.PI / 2, 0, 0]);
@@ -1175,6 +1191,20 @@
     sign(R, [{ t: 'GAINS', size: 210, c: '#FFC93C' }, { t: 'LOADING...', size: 96, c: '#F4F1EA' }], 5.4, 2.1, [X(0) + 0.012, 7.5, Z(800)], [0, Math.PI / 2, 0], { bg: '#22252B' });
     box(0.08, 0.82, 1.4, M.black(), R, [rwx - 0.04, 2.3, Z(60) + 1.0]);
     sign(R, [{ t: 'GYM TV', size: 60, c: '#FFFFFF' }, { t: 'leg day highlights', size: 40, c: '#9BE89F', weight: '700' }], 1.3, 0.72, [rwx - 0.09, 2.3, Z(60) + 1.0], [0, -Math.PI / 2, 0], { bg: '#22324A' }, true);
+    // ---- the toilets (behind the lockers) ----
+    { const tileM = new T.MeshStandardMaterial({ map: tileTexture(false, (1800 - 1346) * SCALE / 1.2, (1086 - 820) * SCALE / 1.2), roughness: 0.35, metalness: 0.05 });
+      const fl = mesh(new T.PlaneGeometry((1800 - 1346) * SCALE, (1100 - 820) * SCALE), tileM, R, [X(1573), 0.01, Z(960)], [-Math.PI / 2, 0, 0]); fl.castShadow = false;
+      // wall tiles behind the urinals and basins (the back of the locker block)
+      const wallT = new T.MeshStandardMaterial({ map: tileTexture(true, (1724 - 1346) * SCALE / 1.2, 2.4 / 1.2), roughness: 0.3, metalness: 0.05 });
+      const wt = mesh(new T.PlaneGeometry((1724 - 1346) * SCALE, 2.4), wallT, R, [X(1535), 1.2, Z(820) + 0.006]); wt.castShadow = false;
+      // a lintel over the doorway and the sign on it
+      box(16 * SCALE, 1.2, 80 * SCALE, wallM, R, [X(1338), 2.8, Z(970)]); box(16 * SCALE + 0.04, 0.08, 80 * SCALE, stripe, R, [X(1338), 2.22, Z(970)]);
+      sign(R, [{ t: 'TOILETS', size: 120, c: '#15171C' }, { t: 'sweet relief', size: 54, c: '#15171C', weight: '700' }], 1.5, 0.55, [X(1330) - 0.012, 2.75, Z(970)], [0, -Math.PI / 2, 0], { bg: '#FFE29A' });
+      // mirror over the basins, signs inside
+      box(3.3, 0.95, 0.04, M.frame(), R, [X(1457), 1.75, Z(820) + 0.03]);
+      const mm = mesh(new T.PlaneGeometry(3.2, 0.85), new T.MeshStandardMaterial({ map: mirrorTexture(), roughness: 0.05, metalness: 0.35 }), R, [X(1457), 1.75, Z(820) + 0.055]); mm.castShadow = false;
+      sign(R, [{ t: 'NO PROTEIN SHAKES', size: 80, c: '#FFFFFF' }, { t: 'IN THE CUBICLES', size: 80, c: '#FFFFFF' }], 2.0, 0.6, [X(1800) - 0.012, 2.75, Z(961)], [0, -Math.PI / 2, 0], { bg: '#2F8F8A' });
+      sign(R, [{ t: 'NOW WASH', size: 80, c: '#15171C' }, { t: 'YOUR HANDS', size: 80, c: '#15171C' }], 0.8, 0.5, [X(1557), 1.6, Z(820) + 0.012], null, { bg: '#F4F1EA', border: '#2F8F8A' }); }
     PROPS(R, up, sh);
     up.userData.noMerge = true;
     if (opts && opts.raw) return { R, up, restMats };   // used by blender/capture_room.js
@@ -1276,6 +1306,12 @@
     ex(R, 'bag', 368, 908, 0, g => { mesh(cylG(0.19, 0.19, 1.1, 16), std('#B22A24', 0.5), g, [0.12, 1.03, 0]); sq([-0.45, 0, 0], [-0.45, 2.4, 0], 0.08, M.frame(), g); sq([-0.49, 2.35, 0], [0.25, 2.35, 0], 0.07, M.frame(), g); box(1.1, 0.06, 0.9, M.frame(), g, [0, 0.03, 0]); });
     ex(R, 'ropes', 712, 1080, Math.PI, g => { const rm = std('#3B3F46', 0.9); tube([-2.4, 0.02, 0.35], [0, 0.03, -0.3], 0.019, rm, g); tube([-1.6, 0.02, 0.55], [0, 0.03, -0.3], 0.019, rm, g); });
     const bagStand = g => box(0.62, 0.28, 0.3, std('#24324A', 0.8), g, [0, 0.14, 0]);
+    const porc = std('#F4F6F8', 0.3), part = std('#5E6B76', 0.5, 0.2);
+    const st = ex(R, 'stalls', 1762, 961, -Math.PI / 2, g => { for (let k = 0; k < 4; k++) box(0.03, 1.9, 1.5, part, g, [-2.5 + k * 5 / 3, 1.1, 0]); box(5, 1.9, 0.03, part, g, [0, 1.1, 0.75]); for (let k = 0; k < 3; k++) box(0.4, 0.4, 0.6, porc, g, [-5 / 3 + k * 5 / 3, 0.2, -0.4]); });
+    sign(st, [{ t: 'OCCUPIED', size: 120, c: '#FFFFFF' }], 0.34, 0.1, [0.2, 1.45, 0.79], null, { bg: '#C8322B' });
+    ex(R, 'urinals', 1640, 834, 0, g => { for (let k = 0; k < 3; k++) box(0.42, 0.6, 0.32, porc, g, [-1.06 + k * 1.06, 0.85, -0.12]); });
+    ex(R, 'vanity', 1457, 835, 0, g => box(3.4, 0.85, 0.6, std('#4A5560', 0.5), g, [0, 0.43, 0]));
+    ex(R, 'wetfloor', 1665, 1052, 0.5, g => box(0.4, 0.6, 0.3, std('#FFC93C', 0.5), g, [0, 0.3, 0]));
     ex(R, 'gymbag', 1132, 712, Math.PI / 2, bagStand); ex(up, 'gymbag', 2030, 330, Math.PI / 2, bagStand);
     const [lx, , lz] = map3(560, 560);
     const d1 = dumbbell(0.7, '#9C6ADE', R); d1.position.set(lx, 0.1, lz); d1.rotation.y = 0.8;

@@ -64,6 +64,10 @@ sound on, music off, muted.
    overall takes the crown: podium, confetti, the lot.
 4. Playing alone? The host can **Add a bot** (up to 3) to test against.
 
+Bladder: resting at a fountain fills it (the stretch mat doesn't). Fill it and you're **busting**: slower, no
+sprinting and the fountains won't take you. The toilets behind the lockers (doorway off the corridor) empty it in
+a couple of seconds.
+
 The gym has separate areas: the main hall (arms and shoulders), cable alley (back), a long corridor
 past the locker room to the leg room, and stairs up to the chest floor. Each area has its own rest spot.
 There's no staff upstairs.

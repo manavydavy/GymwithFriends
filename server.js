@@ -67,12 +67,12 @@ function makeRoom(code) {
   return r;
 }
 
-function freshStats() { return { shoves: 0, shoved: 0, steals: 0, perfects: 0, reps: 0, pulls: 0, strikes: 0, wipes: 0, misses: 0, golds: 0, pres: 0 }; }
+function freshStats() { return { shoves: 0, shoved: 0, steals: 0, perfects: 0, reps: 0, pulls: 0, strikes: 0, wipes: 0, misses: 0, golds: 0, pres: 0, pees: 0 }; }
 function resetPlayer(p, i) {
   Object.assign(p, {
     x: S.SPAWN(i)[0], y: S.SPAWN(i)[1], on: null, stairCd: 0, posIgnore: 0, fat: 0, combo: 0, miss: 0, stun: 0, kvx: 0, kvy: 0,
     shoveCd: 0, askCd: 0, towelCd: 0, limp: 0, sprintT: 0, moveT: 0, sprinting: false, idle: 0, heat: 0, strikes: 0, gains: 0, claim: null, lock: 0,
-    lastRep: 0, lastPos: Date.now(), done: false, goldN: 0, preT: 0, em: '', emT: 0, emCd: 0,
+    lastRep: 0, lastPos: Date.now(), done: false, fluid: 0, peeing: false, fluidWarn: 0, goldN: 0, preT: 0, em: '', emT: 0, emCd: 0,
     grp: Object.fromEntries(S.GK.map(k => [k, { p: 0, pulled: false }])),
     stats: freshStats(), bt: {}
   });
@@ -325,7 +325,7 @@ function movePlayer(r, p, x, y) {
     return;
   }
   // Trust the browser's movement, but not faster than walking speed.
-  const max = C.playerSpeed * (canSprint(p) && p.sprintT > 0 ? C.sprintMult : 1) * (p.limp > 0 ? 0.55 : 1) * dt * 1.5 + 12;
+  const max = C.playerSpeed * (canSprint(p) && p.sprintT > 0 ? C.sprintMult : 1) * slow(p) * dt * 1.5 + 12;
   let dx = x - p.x, dy = y - p.y;
   const d = Math.hypot(dx, dy);
   if (d > max) { dx = dx / d * max; dy = dy / d * max; if (d > max + 60) p.tp++; }
@@ -333,7 +333,8 @@ function movePlayer(r, p, x, y) {
   p.x += dx; p.y += dy;
   S.collide(p);
 }
-const canSprint = p => p.on === null && p.limp <= 0 && p.fat < 100 && p.stun <= 0 && p.lock <= 0;
+const canSprint = p => p.on === null && p.limp <= 0 && p.fat < 100 && p.stun <= 0 && p.lock <= 0 && p.fluid < 100;
+const slow = p => (p.limp > 0 ? 0.55 : 1) * (p.fluid >= 100 ? C.bustSlow : 1);
 
 function emote(r, p, e) {
   const s = S.EMOTES[e | 0];
@@ -374,10 +375,13 @@ function botThink(r, p, dt) {
   if (!b.path) {
     b.stuck = 0;
     if (p.fat > 40 && p.towelCd <= 0 && b.wiper) act(r, p, 'wipe');
-    if (p.fat > 40) {
-      let best = S.REST[0], bd = 1e9;
-      for (const z of S.REST) { if (S.floorOf(z.x) !== S.floorOf(p.x)) continue; const d = dist(p.x, p.y, z.x, z.y) * (S.zoneOf(z.x, z.y) === S.zoneOf(p.x, p.y) ? 0.5 : 1); if (d < bd) { bd = d; best = z; } }
-      b.goal = 'rest'; b.path = route(p.x, p.y, best.x + rnd(-20, 20), best.y + rnd(-20, 20));
+    if (p.fluid >= 80) {
+      b.goal = 'wc'; b.path = route(p.x, p.y, S.TOILET.cx + rnd(-60, 60), S.TOILET.cy + rnd(-30, 30));
+    } else if (p.fat > 40) {
+      let best = null, bd = 1e9;
+      for (const z of S.REST) { if (S.floorOf(z.x) !== S.floorOf(p.x) || (z.n === 'Fountain' && p.fluid >= 70)) continue; const d = dist(p.x, p.y, z.x, z.y) * (S.zoneOf(z.x, z.y) === S.zoneOf(p.x, p.y) ? 0.5 : 1); if (d < bd) { bd = d; best = z; } }
+      if (!best) { b.goal = 'wc'; b.path = route(p.x, p.y, S.TOILET.cx, S.TOILET.cy); }
+      else { b.goal = 'rest'; b.path = route(p.x, p.y, best.x + rnd(-20, 20), best.y + rnd(-20, 20)); }
     } else {
       let target = p.claim;
       if (p.done && r.gold >= 0 && p.fat < 20) target = r.gold;
@@ -396,6 +400,7 @@ function botThink(r, p, dt) {
     }
   }
   if (b.goal === 'pre' && b.path.length === 0) { b.path = null; b.goal = null; return; }
+  if (b.goal === 'wc' && b.path.length === 0) { if (p.fluid <= 0) b.path = null; return; }
   if (b.goal === 'rest' && b.path.length === 0) {
     if (p.fat <= 5) b.path = null;
     return;
@@ -406,11 +411,22 @@ function botThink(r, p, dt) {
     if (d < 6) { b.path.shift(); return; }
     // bots sprint on long trips while they're fresh
     if (b.path.length >= 3 && p.fat < 25 && canSprint(p)) { p.sprintT = 0.3; p.moveT = 0.25; }
-    const sp = C.playerSpeed * 0.9 * (p.sprintT > 0 && canSprint(p) ? C.sprintMult : 1) * (p.limp > 0 ? 0.55 : 1) * dt;
+    const sp = C.playerSpeed * 0.9 * (p.sprintT > 0 && canSprint(p) ? C.sprintMult : 1) * slow(p) * dt;
     const ox = p.x, oy = p.y;
     p.x += (tx - p.x) / d * Math.min(d, sp); p.y += (ty - p.y) / d * Math.min(d, sp);
     S.collide(p);
-    if (dist(ox, oy, p.x, p.y) < sp * 0.2) { b.stuck += dt; if (b.stuck > 1.5) b.path = null; } else b.stuck = 0;
+    if (dist(ox, oy, p.x, p.y) < sp * 0.2) {
+      b.stuck += dt;
+      if (b.stuck > 1.2) {
+        // wedged behind something (a machine, after a shove): step sideways, then carry on to the same place
+        const end = b.path[b.path.length - 1]; b.stuck = 0; b.unstuck = (b.unstuck || 0) + 1;
+        if (b.unstuck > 4) { b.path = null; b.unstuck = 0; return; }
+        let best = null;
+        for (let k = 0; k < 12; k++) { const a = rnd(0, Math.PI * 2), r0 = rnd(50, 110), q = { x: p.x + Math.cos(a) * r0, y: p.y + Math.sin(a) * r0 }; S.collide(q);
+          if (S.floorOf(q.x) !== S.floorOf(p.x)) continue; const sc = dist(q.x, q.y, end[0], end[1]) + rnd(0, 60); if (!best || sc < best.sc) best = { x: q.x, y: q.y, sc }; }
+        if (best) b.path = [[best.x, best.y]].concat(route(best.x, best.y, end[0], end[1]));
+      }
+    } else { b.stuck = 0; b.unstuck = 0; }
     return;
   }
   // arrived at a machine
@@ -467,6 +483,7 @@ function endRound(r) {
   award('Pulled something', 'pulls', v => v + (v === 1 ? ' muscle' : ' muscles'));
   award("Staff's favourite", 'strikes', v => v + (v === 1 ? ' strike' : ' strikes'));
   award('Sweatiest towel', 'wipes', v => v + (v === 1 ? ' wipe down' : ' wipe downs'));
+  award('Weak bladder', 'pees', v => v + (v === 1 ? ' toilet trip' : ' toilet trips'));
   // bank this round into the match
   const mt = r.match;
   for (const p of ps) { const q = matchRec(r, p); q.n = p.n; q.c = p.c; q.pts[mt.round - 1] = p.gains; }
@@ -521,7 +538,23 @@ function tick(r, dt) {
         if (p.bot) trimPath(p);
       }
     }
-    const resting = p.on === null && S.inRest(p.x, p.y);
+    // the bladder: fountains fill it, the toilets empty it, and when it's full you're busting
+    const bust = p.fluid >= 100, fount = p.on === null && S.inFountain(p.x, p.y);
+    const resting = p.on === null && S.inRest(p.x, p.y) && !(fount && bust);   // busting: the fountain's off limits
+    if (r.st === 'playing') {
+      if (fount && !bust && p.fat > 0.5) p.fluid = Math.min(100, p.fluid + C.fluidRate * dt);
+      const wc = p.on === null && S.inToilet(p.x, p.y);
+      if (wc && p.fluid > 0) {
+        if (!p.peeing) { p.peeing = true; p.stats.pees++; }
+        p.fluid = Math.max(0, p.fluid - C.drainRate * dt);
+        if (p.fluid === 0) { p.peeing = false; p.fluidWarn = 0; say(r, p, 'Ahh. Much better', '#9BE89F'); ev(r, { k: 'flush', x: Math.round(p.x), y: Math.round(p.y) }); }
+      } else if (p.peeing) { p.peeing = false; if (p.fluid < 75) p.fluidWarn = 0; }
+      if (p.fluid >= 75 && p.fluidWarn < 1) { p.fluidWarn = 1; say(r, p, 'Need a wee soon', '#FFE29A'); }
+      if (p.fluid >= 100 && p.fluidWarn < 2) {
+        p.fluidWarn = 2; ev(r, { k: 'ban', to: p.id, sf: 'error', s: 'Busting! Get to the toilets', c: '#FFE29A' }); ev(r, { k: 'buzz', to: p.id, v: [80, 60, 80] });
+        ev(r, { k: 'pop', x: Math.round(p.x), y: Math.round(p.y - 34), s: p.n + ' is busting', c: '#FFE29A' });
+      }
+    }
     p.sprintT = Math.max(0, p.sprintT - dt); p.moveT = Math.max(0, p.moveT - dt);
     p.sprinting = r.st === 'playing' && canSprint(p) && p.sprintT > 0 && p.moveT > 0;
     if (p.sprinting) {
@@ -608,7 +641,7 @@ function snapshot(r) {
       id: p.id, n: p.n, c: p.c, b: p.bot ? 1 : 0, x: Math.round(p.x), y: Math.round(p.y), on: p.on,
       ft: Math.round(p.fat), lk: p.on !== null || p.stun > 0 || p.lock > 0 ? 1 : 0, st: p.stun > 0 ? 1 : 0, lo: p.lock > 0 ? 1 : 0,
       tp: p.tp, lm: p.limp > 0 ? 1 : 0, sp: p.sprinting ? 1 : 0, g: p.gains, gr: S.GK.map(k => Math.round(p.grp[k].p)), pl: S.GK.map(k => (p.grp[k].pulled ? 1 : 0)),
-      hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd), gn: p.goldN, pw: Math.ceil(p.preT), rs: p.recov ? 1 : 0, mp: banked(r, p), mw: r.match && r.match.rec[p.id] ? r.match.rec[p.id].w : 0, rc: p.stats.reps, mc: p.stats.misses
+      hz: Math.round(p.heat), sk: p.strikes, cl: p.claim, dn: p.done ? 1 : 0, em: p.emT > 0 ? p.em : '', sc: Math.ceil(p.shoveCd), ac: Math.ceil(p.askCd), tc: Math.ceil(p.towelCd), gn: p.goldN, pw: Math.ceil(p.preT), rs: p.recov ? 1 : 0, fl: Math.round(p.fluid), wc: p.peeing ? 1 : 0, mp: banked(r, p), mw: r.match && r.match.rec[p.id] ? r.match.rec[p.id].w : 0, rc: p.stats.reps, mc: p.stats.misses
     });
   }
   const msg = JSON.stringify({

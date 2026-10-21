@@ -10,7 +10,7 @@
     wipeCooldown: 20,      // towel unusable for this long after a wipe down
     wipeAmount: 100,       // fatigue removed by a wipe down
     maxPlayers: 6,
-    fatiguePerRep: 16,
+    fatiguePerRep: 11,     // a full fatigue meter is about 9 reps
     recoverWalk: 7,        // fatigue lost per second while walking
     recoverRest: 40,       // ...while at a fountain or the stretch mat
     groupPerRep: 9,        // % muscle progress per good rep
@@ -25,6 +25,9 @@
     askCooldown: 3,
     shoveRange: 48,
     useReach: 40,          // how close (from any side of a machine) you need to be to hop on
+    fluidRate: 16,         // bladder fills this much per second while you rest at a fountain
+    drainRate: 45,         // ...and empties this fast in the toilets
+    bustSlow: 0.7,         // walking speed while you're busting (bladder full); no sprinting or drinking either
     shoveFatigue: 22,
     shoveCooldown: 3,
     shoveStun: 1.3,
@@ -95,12 +98,15 @@
     { n: 'Stairs', x: 0, y: 520, w: 200, h: 580, floor: '#4B505C' },
     { n: 'Corridor', x: 1180, y: 380, w: 150, h: 720, floor: '#444A57' },
     { n: 'Leg room', x: 1180, y: 0, w: 620, h: 380, floor: '#47394A' },
-    { n: 'Chest floor', x: 2000, y: 0, w: 700, h: 520, floor: '#4A3A3D' }
+    { n: 'Chest floor', x: 2000, y: 0, w: 700, h: 520, floor: '#4A3A3D' },
+    { n: 'Toilets', x: 1346, y: 820, w: 454, h: 280, floor: '#5F7380' }
   ];
   // Solid walls. t: wall (full height), half (waist-high), rail (railing), lockers (closed block)
   const WALLS = [
     { x: 1150, y: 0, w: 30, h: 900, t: 'wall' },
-    { x: 1330, y: 380, w: 470, h: 720, t: 'lockers' },
+    { x: 1330, y: 380, w: 470, h: 440, t: 'lockers' },
+    // the toilets, behind the lockers: a doorway off the corridor and a waist-high front wall
+    { x: 1330, y: 820, w: 16, h: 110, t: 'wall' }, { x: 1330, y: 1010, w: 16, h: 90, t: 'wall' }, { x: 1346, y: 1086, w: 454, h: 14, t: 'half' },
     { x: 0, y: 300, w: 420, h: 16, t: 'half' }, { x: 560, y: 300, w: 260, h: 16, t: 'half' }, { x: 960, y: 300, w: 190, h: 16, t: 'half' },
     { x: 0, y: 500, w: 214, h: 20, t: 'wall' },
     { x: 200, y: 520, w: 14, h: 480, t: 'rail' },
@@ -120,7 +126,8 @@
     { k: 'plyo', x: 470, y: 1052, w: 80, h: 44 }, { k: 'tree', x: 600, y: 1050, w: 56, h: 50 },
     { k: 'tree', x: 990, y: 28, w: 60, h: 60 }, { k: 'bench', x: 1095, y: 560, w: 40, h: 110 },
     { k: 'tree', x: 1730, y: 300, w: 56, h: 56 }, { k: 'tree', x: 2652, y: 250, w: 46, h: 46 },
-    { k: 'vending', x: 1106, y: 805, w: 44, h: 50 }, { k: 'bag', x: 340, y: 880, w: 56, h: 56 }, { k: 'sign', x: 220, y: 1014, w: 18, h: 18 }
+    { k: 'vending', x: 1106, y: 805, w: 44, h: 50 },
+    { k: 'stalls', x: 1724, y: 836, w: 76, h: 250 }, { k: 'urinals', x: 1560, y: 820, w: 160, h: 28 }, { k: 'sinks', x: 1372, y: 820, w: 170, h: 30 }, { k: 'bag', x: 340, y: 880, w: 56, h: 56 }, { k: 'sign', x: 220, y: 1014, w: 18, h: 18 }
   ];
   const SOLIDS = [...MACH, ...TREADS, DESK, ...WALLS, ...DECOR];
   const REST = [
@@ -139,11 +146,11 @@
   // Walking graph for practice dummies. Directed pairs go through the stair triggers.
   const NAV = {
     A: [680, 780], B: [300, 780], Q: [300, 1060], H: [1050, 880], C: [490, 350], D: [890, 350], E: [490, 250], F: [890, 250], G: [180, 240],
-    K1: [1255, 1000], K2: [1255, 430], LR: [1480, 260], L: [100, 1060], M: [100, 620], SG: [100, 540], N: [2100, 450], SU: [2100, 512], O: [2380, 240], P: [2620, 240]
+    K1: [1255, 1000], WC: [1470, 975], K2: [1255, 430], LR: [1480, 260], L: [100, 1060], M: [100, 620], SG: [100, 540], N: [2100, 450], SU: [2100, 512], O: [2380, 240], P: [2620, 240]
   };
   const NAV_EDGES = [['A', 'B'], ['A', 'H'], ['B', 'Q'], ['Q', 'L'], ['Q', 'H'], ['L', 'M'], ['C', 'A'], ['D', 'A'], ['C', 'B'], ['D', 'H'], ['C', 'E'], ['D', 'F'], ['E', 'F'], ['E', 'G'],
-    ['H', 'K1'], ['K1', 'K2'], ['K2', 'LR'], ['N', 'O'], ['O', 'P'], ['M>SG'], ['SG>N'], ['N>SU'], ['SU>M']];
-  const zoneOf = (x, y) => x >= 1900 ? 'up' : (x < 200 && y > 520) ? 'stairs' : (x >= 1180 && y < 380) ? 'legs' : x >= 1180 ? 'corr' : y < 308 ? 'alley' : 'main';
+    ['H', 'K1'], ['K1', 'WC'], ['K1', 'K2'], ['K2', 'LR'], ['N', 'O'], ['O', 'P'], ['M>SG'], ['SG>N'], ['N>SU'], ['SU>M']];
+  const zoneOf = (x, y) => x >= 1900 ? 'up' : (x < 200 && y > 520) ? 'stairs' : (x >= 1180 && y < 380) ? 'legs' : (x >= 1346 && y >= 820) ? 'wc' : x >= 1180 ? 'corr' : y < 308 ? 'alley' : 'main';
   const floorOf = x => (x >= 1900 ? 1 : 0);
   const COLOURS = ['#3C82FF', '#E2544B', '#2FBF71', '#FFC93C', '#B07CFF', '#FF7AC8'];
   const EMOTES = ['How many sets left?', 'Mine.', 'Spot me?', 'Lightweight!'];
@@ -163,6 +170,10 @@
     return b;
   }
   const inRest = (x, y) => REST.some(r => dist(x, y, r.x, r.y) < r.r);
+  const inFountain = (x, y) => REST.some(r => r.n === 'Fountain' && dist(x, y, r.x, r.y) < r.r);
+  // the toilets: stand anywhere inside and your bladder empties
+  const TOILET = { x: 1346, y: 836, w: 454, h: 250, cx: 1560, cy: 975 };
+  const inToilet = (x, y) => x >= TOILET.x && x <= TOILET.x + TOILET.w && y >= TOILET.y && y <= TOILET.y + TOILET.h;
   const inRect = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   const stairAt = (x, y) => STAIRS.find(s => inRect(x, y, s));
   const stairDest = (s, x) => [Math.max(s.to[0] - 85, Math.min(s.to[0] + 85, x + s.dx)), s.to[1]];
@@ -224,5 +235,5 @@
     o.y = Math.max(72, Math.min(f.y + f.h - 15, o.y));
   }
 
-  Object.assign(out, { PODIUM, CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, machDist, nearMach, TREADS, DESK, DECOR, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, stairDest, route, zoneOf, floorOf, collide, stepStaff, staffSees, angDiff });
+  Object.assign(out, { TOILET, inToilet, inFountain, PODIUM, CFG, W, H, FLOORS, ZONES, WALLS, STAIRS, NAV, NAV_EDGES, SPAWN, GROUPS, GK, PROGRAMS, MACH, machDist, nearMach, TREADS, DESK, DECOR, SOLIDS, REST, DOOR, STAFF_PATH, COLOURS, EMOTES, dist, useSpot, inRest, inRect, stairAt, stairDest, route, zoneOf, floorOf, collide, stepStaff, staffSees, angDiff });
 })(typeof module !== 'undefined' ? module.exports : (window.SHARED = {}));

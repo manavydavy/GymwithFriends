@@ -3,10 +3,10 @@
 (function (out) {
   const NAMES = ['clank1', 'clank2', 'clank3', 'perfect', 'miss', 'whoosh', 'shove', 'whistle', 'buzzer', 'bell', 'tick', 'go', 'power', 'coin',
     'jingle', 'gold', 'fanfare', 'cheer', 'claps', 'splash1', 'splash2', 'splash3', 'wipe', 'towel', 'nick', 'ouch', 'gassed', 'sprint', 'step',
-    'ui_click', 'ui_select', 'ask', 'join', 'error'];
+    'ui_click', 'ui_select', 'ask', 'join', 'error', 'flush', 'tinkle'];
   // per-sound level so they sit together (the files are all normalised to the same peak)
   const LEVEL = { go: 0.45, nick: 0.45, buzzer: 0.4, whistle: 0.55, gassed: 0.55, coin: 0.5, ask: 0.6, tick: 0.55, ui_click: 0.6, ui_select: 0.5, join: 0.6,
-    error: 0.6, step: 0.6, sprint: 0.6, power: 0.8, cheer: 1, claps: 1, fanfare: 0.9, bell: 0.75, splash1: 0.9, splash2: 0.9, splash3: 0.9, miss: 0.7 };
+    error: 0.6, step: 0.6, sprint: 0.6, power: 0.8, cheer: 1, claps: 1, fanfare: 0.9, bell: 0.75, splash1: 0.9, splash2: 0.9, splash3: 0.9, miss: 0.7, flush: 0.8, tinkle: 0.5 };
   let ctx = null, master, sfxBus, musicBus, musicLP, buffers = {}, loopLen = 0, music = null, musicWant = false, playing = {};
   // 0 = everything on, 1 = sound effects only (music off), 2 = muted
   let mode = 0;
